@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.env
+.venv/
+venv/
+build/
+dist/
+.eggs/
+*.egg-info/
+
+# Poetry / pip
+poetry.lock
+pip-wheel-metadata/
+
+# Data artifacts
+data/raw/
+data/interim/
+data/processed/
+marker_db.sqlite
+*.parquet
+
+# Streamlit / cache
+.streamlit/
+frontend/__pycache__/
+frontend/.streamlit/
+
+# VSCode / IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Testing
+htmlcov/
+.coverage
+.pytest_cache/
+
+# Logs
+logs/
+*.log
+
+# Docker
+*.pid
