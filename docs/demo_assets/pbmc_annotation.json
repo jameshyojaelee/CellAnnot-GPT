@@ -1,0 +1,24 @@
+{
+  "summary": {
+    "total_clusters": 8,
+    "supported_clusters": 6,
+    "flagged_clusters": 2,
+    "unknown_clusters": ["5"]
+  },
+  "clusters": [
+    {
+      "cluster_id": "0",
+      "annotation": {
+        "primary_label": "CD14+ Monocyte",
+        "confidence": "High",
+        "rationale": "Markers MS4A7, LYZ match monocytes",
+        "markers": ["MS4A7", "LYZ", "S100A8"]
+      },
+      "validation": {
+        "is_supported": true,
+        "supporting_markers": ["MS4A7", "LYZ"]
+      },
+      "warnings": []
+    }
+  ]
+}

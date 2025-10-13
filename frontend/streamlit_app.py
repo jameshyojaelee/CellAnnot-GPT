@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -106,45 +107,128 @@ def page_review_results() -> None:
         st.info("Run batch annotation to populate this view.")
         return
 
-    summary = format_summary(result["result"])
-    st.markdown(f"**Summary:** {summary}")
+    report = result["result"]
+    summary_str = format_summary(report)
+    st.markdown(f"**Summary:** {summary_str}")
 
-    for cluster in result["result"]["clusters"]:
+    summary = report.get("summary", {})
+    metrics = report.get("metrics", {})
+    clusters = report.get("clusters", [])
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric(
+        "Supported",
+        summary.get("supported_clusters", 0),
+        f"{metrics.get('support_rate', 0) * 100:.1f}%",
+    )
+    col2.metric(
+        "Flagged",
+        summary.get("flagged_clusters", 0),
+        f"{metrics.get('flagged_rate', 0) * 100:.1f}%",
+    )
+    col3.metric(
+        "Unknown",
+        len(summary.get("unknown_clusters", [])),
+        f"{metrics.get('unknown_rate', 0) * 100:.1f}%",
+    )
+
+    chart_data = pd.DataFrame(
+        [
+            {"Status": "Supported", "Count": summary.get("supported_clusters", 0)},
+            {"Status": "Flagged", "Count": summary.get("flagged_clusters", 0)},
+        ]
+    )
+    bar_chart = (
+        alt.Chart(chart_data)
+        .mark_bar(radius=4)
+        .encode(x=alt.X("Status", sort=None), y="Count", color="Status")
+    )
+    st.altair_chart(bar_chart, use_container_width=True)
+
+    confidence_counts = metrics.get("confidence_counts", {})
+    if confidence_counts:
+        confidence_df = pd.DataFrame(
+            [{"Confidence": level, "Count": count} for level, count in confidence_counts.items()]
+        )
+        conf_chart = (
+            alt.Chart(confidence_df)
+            .mark_bar(radius=4)
+            .encode(x=alt.X("Confidence", sort=None), y="Count", color="Confidence")
+        )
+        st.altair_chart(conf_chart, use_container_width=True)
+
+    flagged_reasons = metrics.get("flagged_reasons", {})
+    if flagged_reasons:
+        reason_df = pd.DataFrame(
+            [{"Reason": key.replace("_", " ").title(), "Count": val} for key, val in flagged_reasons.items()]
+        )
+        reason_chart = (
+            alt.Chart(reason_df)
+            .mark_bar(radius=4)
+            .encode(y=alt.Y("Reason", sort="-x"), x="Count", color="Reason")
+        )
+        st.altair_chart(reason_chart, use_container_width=True)
+
+    for cluster in clusters:
         cluster_id = cluster["cluster_id"]
         annotation = cluster.get("annotation", {})
         primary_label = annotation.get("primary_label", "Unknown")
         markers = annotation.get("markers", [])
         warnings = cluster.get("warnings", [])
         validation = cluster.get("validation")
+        status = cluster.get("status", "supported").title()
+        confidence = cluster.get("confidence")
 
-        st.subheader(f"Cluster {cluster_id} → {primary_label}")
-        if markers:
-            st.caption(f"Markers: {', '.join(markers)}")
-        if warnings:
-            st.warning("\n".join(warnings))
-        else:
-            st.success("Supported by marker database")
+        with st.expander(f"Cluster {cluster_id} → {primary_label} ({status})", expanded=status != "Supported"):
+            if markers:
+                st.caption(f"Markers: {', '.join(markers)}")
+            if confidence:
+                st.markdown(f"**Confidence:** {confidence}")
+            if warnings:
+                st.warning("\n".join(warnings))
+            else:
+                st.success("Supported by marker database")
 
-        cols = st.columns(2)
-        with cols[0]:
-            st.write("Annotation")
-            st.json(annotation)
-        with cols[1]:
-            st.write("Validation")
-            st.json(validation or {})
+            cols = st.columns(2)
+            with cols[0]:
+                st.write("Annotation")
+                st.json(annotation)
+            with cols[1]:
+                st.write("Validation")
+                st.json(validation or {})
 
 
 def main() -> None:
     _ensure_session_state()
 
     st.sidebar.title("CellAnnot-GPT")
+    llm_mode = "unknown"
+    badge_label = "API"
+    cache_enabled = False
     try:
         health = get_health()
         status = health.get("status", "ok")
+        llm_mode = health.get("llm_mode", "unknown")
+        cache_enabled = bool(health.get("cache_enabled", False))
         badge_color = "ok" if status == "ok" else "warn"
     except Exception:  # noqa: BLE001 - keep sidebar resilient
         badge_color = "error"
-    st.sidebar.markdown(status_badge("API", badge_color), unsafe_allow_html=True)
+    else:
+        if llm_mode == "mock":
+            badge_label = "API (mock)"
+            badge_color = "warn"
+    st.sidebar.markdown(status_badge(badge_label, badge_color), unsafe_allow_html=True)
+    if llm_mode == "mock":
+        st.sidebar.warning(
+            "LLM requests are running in mock mode. Outputs use heuristic rules; configure "
+            "`OPENAI_API_KEY` for live annotations."
+        )
+        st.info(
+            "Mock annotator active: predictions use marker heuristics only. Expect reduced accuracy "
+            "until an OpenAI API key is provided."
+        )
+    if cache_enabled:
+        st.sidebar.success("Redis cache active for repeated annotations.")
 
     page = st.sidebar.radio(
         "Navigation",

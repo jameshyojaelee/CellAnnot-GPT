@@ -7,17 +7,9 @@ import os
 from typing import Any, Dict, List
 
 import requests
-import streamlit as st
 
 
-def _get_api_base_url() -> str:
-    try:
-        return st.secrets["api_base_url"]  # type: ignore[index]
-    except Exception:  # noqa: BLE001 - secrets may be absent in tests
-        return os.environ.get("CELLANNOT_API_URL", "http://127.0.0.1:8000")
-
-
-API_BASE_URL = _get_api_base_url()
+API_BASE_URL = os.environ.get("CELLANNOT_API_URL", "http://127.0.0.1:8000")
 
 
 @functools.lru_cache(maxsize=32)
@@ -63,11 +55,23 @@ def status_badge(label: str, status: str) -> str:
     return f"<span style='padding:4px 8px;border-radius:12px;background:{color};color:white;'>{label}</span>"
 
 
-def format_summary(result: Dict[str, Any]) -> str:
-    summary = result.get("summary", {})
+def format_summary(report: Dict[str, Any]) -> str:
+    summary = report.get("summary", {})
+    metrics = report.get("metrics", {})
+    support_rate = metrics.get("support_rate")
+    flagged_rate = metrics.get("flagged_rate")
+    unknown_rate = metrics.get("unknown_rate")
+    total = summary.get("total_clusters", 0)
+    supported = summary.get("supported_clusters", 0)
+    flagged = summary.get("flagged_clusters", 0)
+    unknown = len(summary.get("unknown_clusters", []))
+
+    def pct(value: Optional[float]) -> str:
+        return f"{value * 100:.1f}%" if value is not None else "n/a"
+
     return (
-        f"Total: {summary.get('total_clusters', 0)} | "
-        f"Supported: {summary.get('supported_clusters', 0)} | "
-        f"Flagged: {summary.get('flagged_clusters', 0)} | "
-        f"Unknown: {len(summary.get('unknown_clusters', []))}"
+        f"Total: {total} | "
+        f"Supported: {supported} ({pct(support_rate)}) | "
+        f"Flagged: {flagged} ({pct(flagged_rate)}) | "
+        f"Unknown: {unknown} ({pct(unknown_rate)})"
     )

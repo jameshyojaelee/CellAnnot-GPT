@@ -7,7 +7,7 @@ from backend.validation.crosscheck import (
     crosscheck_annotation,
     crosscheck_batch,
 )
-from backend.validation.report import build_structured_report, render_text_report
+from backend.validation.report import DatasetReport, build_structured_report, render_text_report
 
 
 def make_marker_db() -> pd.DataFrame:
@@ -121,9 +121,11 @@ def test_build_structured_report_and_render_text() -> None:
     results = crosscheck_batch(annotations, make_marker_db(), species="Homo sapiens")
     structured = build_structured_report(annotations, results)
 
-    assert structured["summary"]["total_clusters"] == 2
-    assert structured["summary"]["flagged_clusters"] >= 1
-    assert "1" in structured["summary"]["unknown_clusters"]
+    assert structured.summary.total_clusters == 2
+    assert structured.summary.flagged_clusters >= 1
+    assert "1" in structured.summary.unknown_clusters
+    assert "confidence_counts" in structured.metrics.model_dump()
+
     text = render_text_report(structured)
     assert "CellAnnot-GPT Validation Report" in text
     assert "Unknown clusters" in text

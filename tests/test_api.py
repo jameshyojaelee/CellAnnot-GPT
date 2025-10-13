@@ -12,6 +12,7 @@ class DummyAnnotator:
     def __init__(self) -> None:
         self.cluster_calls = 0
         self.batch_calls = 0
+        self._llm_mode = "mock"
 
     def annotate_cluster(self, cluster_payload, dataset_context=None):  # type: ignore[override]
         self.cluster_calls += 1
@@ -33,6 +34,10 @@ class DummyAnnotator:
             }
             for c in clusters
         }
+
+    @property
+    def llm_mode(self) -> str:  # type: ignore[override]
+        return self._llm_mode
 
 
 @pytest.fixture(autouse=True)
@@ -65,6 +70,7 @@ def override_dependencies():
 
     main.app.dependency_overrides[main.get_annotator] = lambda: annotator
     main.app.dependency_overrides[main.get_marker_db] = lambda: marker_db
+    main.app.dependency_overrides[main.get_cache] = lambda: None
     yield
     main.app.dependency_overrides.clear()
 
@@ -75,7 +81,7 @@ client = TestClient(app)
 def test_health_endpoint():
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json() == {"status": "ok", "llm_mode": "mock", "cache_enabled": False}
 
 
 def test_annotate_cluster_endpoint():
@@ -90,7 +96,9 @@ def test_annotate_cluster_endpoint():
     assert response.status_code == 200
     data = response.json()
     assert data["result"]["summary"]["supported_clusters"] == 1
+    assert "support_rate" in data["result"]["metrics"]
     assert data["result"]["clusters"][0]["annotation"]["primary_label"] == "B cell"
+    assert data["result"]["clusters"][0]["status"] == "supported"
 
 
 def test_annotate_batch_endpoint():
@@ -108,3 +116,4 @@ def test_annotate_batch_endpoint():
     assert {cluster["annotation"]["primary_label"] for cluster in data["result"]["clusters"]} == {
         "T cell"
     }
+    assert data["result"]["metrics"]["confidence_counts"]

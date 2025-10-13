@@ -21,6 +21,7 @@ class Settings(BaseSettings):
 
     environment: str = Field(default="development")
     data_dir: str = Field(default="data/processed")
+    redis_url: str = Field(default="", alias="REDIS_URL")
 
     class Config:
         env_file = ".env"

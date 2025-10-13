@@ -1,0 +1,19 @@
+sources:
+  - name: PanglaoDemo
+    fmt: csv
+    parser: panglaodb
+    local_path: data/demo/panglaodb_demo.csv
+    metadata:
+      license: CC0
+  - name: CellMarkerDemo
+    fmt: csv
+    parser: cellmarker
+    local_path: data/demo/cellmarker_demo.csv
+    metadata:
+      license: CC BY 4.0
+  - name: CuratedDemo
+    fmt: json
+    parser: curated_json
+    local_path: data/demo/curated_demo.json
+    metadata:
+      description: "Hand-curated demo markers"

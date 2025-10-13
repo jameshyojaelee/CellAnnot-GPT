@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -27,6 +28,9 @@ from typing import Callable, Dict, Iterable, List, Optional
 
 import httpx
 import pandas as pd
+import yaml
+
+logger = logging.getLogger("cellannot.data_ingest")
 
 NORMALIZED_COLUMNS = [
     "source",
@@ -45,10 +49,10 @@ class SourceConfig:
     """Configuration for a marker gene source."""
 
     name: str
-    url: str
     fmt: str
     parser: Callable[[bytes, str], pd.DataFrame]
     metadata: Dict[str, str] = field(default_factory=dict)
+    url: Optional[str] = None
     local_path: Optional[Path] = None
 
 
@@ -128,6 +132,15 @@ def parse_curated_json(payload: bytes, source: str) -> pd.DataFrame:
     return df
 
 
+PARSER_REGISTRY: Dict[str, Callable[[bytes, str], pd.DataFrame]] = {
+    "panglaodb": parse_panglaodb,
+    "cellmarker": parse_cellmarker,
+    "curated_json": parse_curated_json,
+    "csv": parse_panglaodb,  # default CSV structure
+    "json": parse_curated_json,
+}
+
+
 class MarkerDataLoader:
     """Download, normalize, and persist marker gene knowledge sources."""
 
@@ -152,17 +165,21 @@ class MarkerDataLoader:
         if self._owns_client:
             self._http_client.close()
 
-    def _fetch(self, source: SourceConfig) -> bytes:
+    def _fetch(self, source: SourceConfig, *, local_only: bool = False) -> bytes:
         if source.local_path and source.local_path.exists():
             return source.local_path.read_bytes()
+        if local_only:
+            raise FileNotFoundError(f"Local file for source '{source.name}' not found and local-only mode enabled.")
+        if not source.url:
+            raise ValueError(f"Source '{source.name}' missing URL and local path.")
         response = self._http_client.get(source.url)
         response.raise_for_status()
         return response.content
 
-    def load_all(self) -> pd.DataFrame:
+    def load_all(self, *, local_only: bool = False) -> pd.DataFrame:
         frames: List[pd.DataFrame] = []
         for cfg in self.sources:
-            payload = self._fetch(cfg)
+            payload = self._fetch(cfg, local_only=local_only)
             df = cfg.parser(payload, cfg.name)
             missing = set(NORMALIZED_COLUMNS) - set(df.columns)
             if missing:
@@ -185,9 +202,15 @@ class MarkerDataLoader:
             df.to_sql(table_name, conn, if_exists="replace", index=False)
         return self.sqlite_path
 
-    def run(self, *, write_parquet: bool = True, write_sqlite: bool = True) -> pd.DataFrame:
+    def run(
+        self,
+        *,
+        write_parquet: bool = True,
+        write_sqlite: bool = True,
+        local_only: bool = False,
+    ) -> pd.DataFrame:
         try:
-            df = self.load_all()
+            df = self.load_all(local_only=local_only)
             if write_parquet:
                 self.write_to_parquet(df)
             if write_sqlite:
@@ -197,40 +220,46 @@ class MarkerDataLoader:
             self.close()
 
 
-def default_sources() -> List[SourceConfig]:
-    """Return SourceConfig entries for default public datasets."""
+def load_sources_from_yaml(path: Path) -> List[SourceConfig]:
+    if not path.exists():
+        raise FileNotFoundError(f"Marker source config not found: {path}")
+    with path.open("r", encoding="utf-8") as fh:
+        data = yaml.safe_load(fh) or {}
+    sources_cfg = data.get("sources", [])
+    sources: List[SourceConfig] = []
+    for entry in sources_cfg:
+        name = entry["name"]
+        fmt = entry.get("fmt", "csv").lower()
+        parser_key = entry.get("parser", fmt)
+        parser = PARSER_REGISTRY.get(parser_key)
+        if parser is None:
+            raise ValueError(f"Unknown parser '{parser_key}' for source '{name}'")
+        local_path = entry.get("local_path")
+        source = SourceConfig(
+            name=name,
+            fmt=fmt,
+            parser=parser,
+            metadata=entry.get("metadata", {}),
+            url=entry.get("url"),
+            local_path=Path(local_path) if local_path else None,
+        )
+        sources.append(source)
+    return sources
 
-    return [
-        SourceConfig(
-            name="PanglaoDB",
-            url="https://storage.example.org/panglaodb_markers.csv",
-            fmt="csv",
-            parser=parse_panglaodb,
-            metadata={"license": "CC0"},
-        ),
-        SourceConfig(
-            name="CellMarker",
-            url="https://storage.example.org/cellmarker_markers.csv",
-            fmt="csv",
-            parser=parse_cellmarker,
-            metadata={"license": "CC BY 4.0"},
-        ),
-        SourceConfig(
-            name="CuratedLiterature",
-            url="https://storage.example.org/curated_markers.json",
-            fmt="json",
-            parser=parse_curated_json,
-            metadata={"description": "Hand-curated niche markers"},
-        ),
-    ]
+
+def default_sources(config_path: Optional[Path] = None) -> List[SourceConfig]:
+    if config_path:
+        return load_sources_from_yaml(config_path)
+    return []
 
 
 __all__ = [
     "MarkerDataLoader",
     "SourceConfig",
-    "default_sources",
     "parse_panglaodb",
     "parse_cellmarker",
     "parse_curated_json",
+    "load_sources_from_yaml",
+    "default_sources",
     "NORMALIZED_COLUMNS",
 ]

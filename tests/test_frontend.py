@@ -40,11 +40,16 @@ def test_format_summary_builds_human_string():
                 "supported_clusters": 2,
                 "flagged_clusters": 1,
                 "unknown_clusters": ["1"],
-            }
+            },
+            "metrics": {
+                "support_rate": 2 / 3,
+                "flagged_rate": 1 / 3,
+                "unknown_rate": 1 / 3,
+            },
         }
     )
     assert "Total: 3" in summary
-    assert "Flagged: 1" in summary
+    assert "Flagged: 1 (33.3%" in summary
 
 
 def test_status_badge_returns_html():
@@ -58,7 +63,7 @@ def test_api_helpers(monkeypatch):
 
     def fake_get(url, timeout=10):
         calls["get"] = (url, timeout)
-        return DummyResponse({"status": "ok"})
+        return DummyResponse({"status": "ok", "llm_mode": "mock", "cache_enabled": False})
 
     def fake_post(url, data=None, headers=None, timeout=None, json=None, **kwargs):
         payload = json if json is not None else data

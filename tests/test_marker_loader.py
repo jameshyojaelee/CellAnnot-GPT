@@ -13,6 +13,7 @@ from backend.data_ingest.marker_loader import (
     parse_cellmarker,
     parse_curated_json,
     parse_panglaodb,
+    load_sources_from_yaml,
 )
 
 
@@ -129,3 +130,31 @@ def test_curated_parser_requires_list() -> None:
     bad_payload = json.dumps({"cell_type": "T cell"}).encode()
     with pytest.raises(ValueError):
         parse_curated_json(bad_payload, "CuratedLit")
+
+
+def test_load_sources_from_yaml_local_only(tmp_path: Path) -> None:
+    panglao_path = tmp_path / "panglao.csv"
+    panglao_path.write_text(
+        "cell_type,gene,organ,species,evidence,reference\n"
+        "B cell,MS4A1,Blood,Homo sapiens,known,ref\n",
+        encoding="utf-8",
+    )
+    cellmarker_path = tmp_path / "cellmarker.csv"
+    cellmarker_path.write_text(
+        "cell_type,gene_symbol,tissue_type,species,pubmed_id\n"
+        "T cell,CD3E,Blood,Homo sapiens,123456\n",
+        encoding="utf-8",
+    )
+    config_path = tmp_path / "sources.yaml"
+    config_path.write_text(
+        "sources:\n"
+        f"  - name: PanglaoLocal\n    fmt: csv\n    parser: panglaodb\n    local_path: {panglao_path}\n"
+        f"  - name: CellMarkerLocal\n    fmt: csv\n    parser: cellmarker\n    local_path: {cellmarker_path}\n",
+        encoding="utf-8",
+    )
+
+    sources = load_sources_from_yaml(config_path)
+    loader = MarkerDataLoader(sources, storage_dir=tmp_path)
+    df = loader.run(local_only=True)
+    assert len(df) == 2
+    assert set(df.columns) == set(NORMALIZED_COLUMNS)

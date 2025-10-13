@@ -45,6 +45,8 @@ class BatchAnnotationResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str = "ok"
+    llm_mode: str = "unknown"
+    cache_enabled: bool = False
 
 
 __all__ = [

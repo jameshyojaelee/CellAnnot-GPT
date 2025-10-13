@@ -1,0 +1,5 @@
+cell_type,gene,organ,species,evidence,reference
+B cell,MS4A1,Blood,Homo sapiens,known marker,https://demo.local/bcell
+B cell,CD79A,Blood,Homo sapiens,known marker,https://demo.local/bcell
+Monocyte,LYZ,Blood,Homo sapiens,known marker,https://demo.local/mono
+Monocyte,S100A9,Blood,Homo sapiens,known marker,https://demo.local/mono

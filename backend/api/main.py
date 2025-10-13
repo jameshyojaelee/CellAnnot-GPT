@@ -19,15 +19,23 @@ from backend.llm.annotator import Annotator, AnnotationError
 from backend.validation.crosscheck import crosscheck_batch
 from backend.validation.report import build_structured_report
 from backend.data_ingest.marker_loader import NORMALIZED_COLUMNS
+from backend.cache.redis_cache import RedisAnnotationCache, create_cache_from_env
+from config.settings import get_settings
 import pandas as pd
 
 logger = logging.getLogger("cellannot.api")
+settings = get_settings()
+_CACHE = create_cache_from_env(settings.redis_url)
 
 
 def get_annotator() -> Annotator:
     """Dependency provider for the annotator."""
 
     return Annotator()
+
+
+def get_cache() -> Optional[RedisAnnotationCache]:
+    return _CACHE
 
 
 def get_marker_db() -> pd.DataFrame:
@@ -48,8 +56,11 @@ app.middleware("http")(logging_middleware)
 
 
 @app.get("/health", response_model=HealthResponse)
-async def health() -> HealthResponse:
-    return HealthResponse(status="ok")
+async def health(
+    annotator: Annotator = Depends(get_annotator),
+    cache: Optional[RedisAnnotationCache] = Depends(get_cache),
+) -> HealthResponse:
+    return HealthResponse(status="ok", llm_mode=annotator.llm_mode, cache_enabled=cache is not None)
 
 
 @app.post("/annotate_cluster", response_model=AnnotationResponse)
@@ -57,7 +68,25 @@ async def annotate_cluster(
     payload: AnnotateClusterRequest,
     annotator: Annotator = Depends(get_annotator),
     marker_db: pd.DataFrame = Depends(get_marker_db),
+    cache: Optional[RedisAnnotationCache] = Depends(get_cache),
 ) -> AnnotationResponse:
+    logger.info(
+        "Annotating cluster %s using llm_mode=%s",
+        payload.cluster.cluster_id,
+        annotator.llm_mode,
+    )
+    context_dict = payload.dataset_context.model_dump(exclude_none=True) if payload.dataset_context else {}
+    cache_payload = {
+        "type": "cluster",
+        "markers": sorted(payload.cluster.markers),
+        "context": context_dict,
+        "llm_mode": annotator.llm_mode,
+    }
+    if cache is not None:
+        cached = await cache.get(cache_payload)
+        if cached is not None:
+            logger.debug("Cache hit for cluster %s", payload.cluster.cluster_id)
+            return AnnotationResponse(result=cached)
     try:
         result = annotator.annotate_cluster(
             payload.cluster.model_dump(),
@@ -79,7 +108,10 @@ async def annotate_cluster(
         species=(payload.dataset_context.species if payload.dataset_context else None),
         tissue=(payload.dataset_context.tissue if payload.dataset_context else None),
     )
-    report = build_structured_report([annotation_record], crosschecked)
+    report_model = build_structured_report([annotation_record], crosschecked)
+    report = report_model.model_dump()
+    if cache is not None:
+        await cache.set(cache_payload, report)
     return AnnotationResponse(result=report)
 
 
@@ -88,7 +120,29 @@ async def annotate_batch(
     payload: AnnotateBatchRequest,
     annotator: Annotator = Depends(get_annotator),
     marker_db: pd.DataFrame = Depends(get_marker_db),
+    cache: Optional[RedisAnnotationCache] = Depends(get_cache),
 ) -> BatchAnnotationResponse:
+    logger.info(
+        "Annotating batch of %s clusters using llm_mode=%s",
+        len(payload.clusters),
+        annotator.llm_mode,
+    )
+    context_dict = payload.dataset_context.model_dump(exclude_none=True) if payload.dataset_context else {}
+    clusters_payload = [
+        {"cluster_id": str(cluster.cluster_id), "markers": sorted(cluster.markers)}
+        for cluster in payload.clusters
+    ]
+    cache_payload = {
+        "type": "batch",
+        "clusters": clusters_payload,
+        "context": context_dict,
+        "llm_mode": annotator.llm_mode,
+    }
+    if cache is not None:
+        cached = await cache.get(cache_payload)
+        if cached is not None:
+            logger.debug("Cache hit for batch of %s clusters", len(payload.clusters))
+            return BatchAnnotationResponse(result=cached)
     try:
         result = annotator.annotate_batch(
             [cluster.model_dump() for cluster in payload.clusters],
@@ -115,7 +169,10 @@ async def annotate_batch(
         species=(payload.dataset_context.species if payload.dataset_context else None),
         tissue=(payload.dataset_context.tissue if payload.dataset_context else None),
     )
-    report = build_structured_report(annotations, crosschecked)
+    report_model = build_structured_report(annotations, crosschecked)
+    report = report_model.model_dump()
+    if cache is not None:
+        await cache.set(cache_payload, report)
     return BatchAnnotationResponse(result=report)
 
 

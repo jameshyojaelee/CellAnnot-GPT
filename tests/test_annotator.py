@@ -51,6 +51,7 @@ def test_annotate_cluster_parses_json(monkeypatch: pytest.MonkeyPatch) -> None:
         openai_retry_attempts=1,
     )
     annotator = Annotator(settings=settings, client=client)  # type: ignore[arg-type]
+    assert annotator.llm_mode == "live"
     recorder = SleepRecorder()
     monkeypatch.setattr(annotator, "_sleep", recorder)  # type: ignore[arg-type]
 
@@ -74,6 +75,7 @@ def test_annotate_batch_retries_on_failure(monkeypatch: pytest.MonkeyPatch) -> N
         openai_retry_backoff_seconds=0.1,
     )
     annotator = Annotator(settings=settings, client=client)  # type: ignore[arg-type]
+    assert annotator.llm_mode == "live"
     recorder = SleepRecorder()
     monkeypatch.setattr(annotator, "_sleep", recorder)  # type: ignore[arg-type]
 
@@ -89,6 +91,17 @@ def test_invalid_json_raises_annotation_error() -> None:
     client = FakeClient(completions)
     settings = Settings(openai_api_key="test-key", openai_requests_per_minute=0)
     annotator = Annotator(settings=settings, client=client)  # type: ignore[arg-type]
+    assert annotator.llm_mode == "live"
 
     with pytest.raises(AnnotationError):
         annotator.annotate_cluster({"cluster_id": "1", "markers": []})
+
+
+def test_mock_mode_when_api_key_missing():
+    settings = Settings(openai_api_key="", openai_requests_per_minute=0)
+    annotator = Annotator(settings=settings)
+
+    assert annotator.llm_mode == "mock"
+    result = annotator.annotate_cluster({"cluster_id": "0", "markers": ["MS4A1", "CD79A"]})
+    assert result["primary_label"] == "B cell"
+    assert "rationale" in result
