@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
 from typing import Any, Dict, List
 
 import altair as alt
 import pandas as pd
 import streamlit as st
+try:
+    from fpdf import FPDF
+except ImportError:  # pragma: no cover - optional dependency
+    FPDF = None  # type: ignore
 
 from frontend.utils import annotate_batch, annotate_cluster_api, format_summary, get_health, status_badge
 
@@ -16,6 +21,28 @@ def _ensure_session_state() -> None:
     st.session_state.setdefault("uploaded_clusters", [])
     st.session_state.setdefault("batch_result", None)
     st.session_state.setdefault("single_cluster_result", None)
+
+
+def _show_toast(message: str, icon: str = "✅") -> None:
+    if hasattr(st, "toast"):
+        st.toast(message, icon=icon)
+
+
+def _render_header(current_page: str, pages: List[str]) -> None:
+    st.markdown(
+        """
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0;">
+          <div style="font-size:1.4rem;font-weight:700;color:#1F6FEB;">CellAnnot-GPT Dashboard</div>
+          <div style="font-size:0.9rem;color:#4F6170;">Know your cells in a single click</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    index = pages.index(current_page)
+    breadcrumb = " › ".join(pages[: index + 1])
+    st.markdown(f"**{breadcrumb}**")
+    if len(pages) > 1:
+        st.progress(index / (len(pages) - 1))
 
 
 def _parse_marker_field(value: Any) -> List[str]:
@@ -34,6 +61,57 @@ def _parse_marker_field(value: Any) -> List[str]:
         # fallback: comma separated string
         return [gene.strip() for gene in candidate.split(",") if gene.strip()]
     return []
+
+
+def _build_pdf_report(report: Dict[str, Any]) -> bytes:
+    if FPDF is None:
+        return b"PDF generation requires the fpdf2 package."
+
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, "CellAnnot-GPT Batch Report", ln=1)
+
+    summary = report.get("summary", {})
+    metrics = report.get("metrics", {})
+
+    pdf.set_font("Helvetica", size=12)
+    pdf.multi_cell(
+        0,
+        8,
+        f"Total clusters: {summary.get('total_clusters', 0)}\n"
+        f"Supported: {summary.get('supported_clusters', 0)}\n"
+        f"Flagged: {summary.get('flagged_clusters', 0)}\n"
+        f"Unknown: {len(summary.get('unknown_clusters', []))}\n",
+    )
+
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 10, "Metrics", ln=1)
+    pdf.set_font("Helvetica", size=11)
+    pdf.multi_cell(
+        0,
+        6,
+        f"Support rate: {metrics.get('support_rate', 0)*100:.1f}%\n"
+        f"Flagged rate: {metrics.get('flagged_rate', 0)*100:.1f}%\n"
+        f"Unknown rate: {metrics.get('unknown_rate', 0)*100:.1f}%",
+    )
+
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 10, "Clusters", ln=1)
+    pdf.set_font("Helvetica", size=10)
+    for cluster in report.get("clusters", []):
+        pdf.multi_cell(
+            0,
+            5,
+            f"#{cluster['cluster_id']} | {cluster.get('annotation', {}).get('primary_label', 'Unknown')}"
+            f" | status: {cluster.get('status', 'n/a')}\nWarnings: {', '.join(cluster.get('warnings', [])) or 'None'}\n",
+        )
+
+    buffer = BytesIO()
+    pdf.output(buffer)
+    buffer.seek(0)
+    return buffer.read()
 
 
 def load_markers_from_csv(file) -> List[Dict[str, Any]]:
@@ -86,7 +164,7 @@ def page_batch_annotate() -> None:
     with col2:
         tissue = st.text_input("Tissue / Compartment", value="")
 
-    if st.button("Run Batch Annotation"):
+    if st.button("Run Batch Annotation", type="primary"):
         payload = {
             "clusters": clusters,
             "dataset_context": {k: v for k, v in [("species", species), ("tissue", tissue)] if v},
@@ -99,6 +177,7 @@ def page_batch_annotate() -> None:
                 return
         st.session_state["batch_result"] = result
         st.success("Batch annotation complete. Review results on the next page.")
+        _show_toast("Batch annotation finished", icon="✅")
 
 
 def page_review_results() -> None:
@@ -122,16 +201,19 @@ def page_review_results() -> None:
         summary.get("supported_clusters", 0),
         f"{metrics.get('support_rate', 0) * 100:.1f}%",
     )
+    col1.caption("ℹ️ Share of clusters validated successfully.")
     col2.metric(
         "Flagged",
         summary.get("flagged_clusters", 0),
         f"{metrics.get('flagged_rate', 0) * 100:.1f}%",
     )
+    col2.caption("ℹ️ Requires manual review or marker cross-checking.")
     col3.metric(
         "Unknown",
         len(summary.get("unknown_clusters", [])),
         f"{metrics.get('unknown_rate', 0) * 100:.1f}%",
     )
+    col3.caption("ℹ️ Clusters where the model suggested novel/uncertain identity.")
 
     chart_data = pd.DataFrame(
         [
@@ -144,7 +226,7 @@ def page_review_results() -> None:
         .mark_bar(radius=4)
         .encode(x=alt.X("Status", sort=None), y="Count", color="Status")
     )
-    st.altair_chart(bar_chart, use_container_width=True)
+    st.altair_chart(bar_chart.interactive(), use_container_width=True)
 
     confidence_counts = metrics.get("confidence_counts", {})
     if confidence_counts:
@@ -156,7 +238,7 @@ def page_review_results() -> None:
             .mark_bar(radius=4)
             .encode(x=alt.X("Confidence", sort=None), y="Count", color="Confidence")
         )
-        st.altair_chart(conf_chart, use_container_width=True)
+        st.altair_chart(conf_chart.interactive(), use_container_width=True)
 
     flagged_reasons = metrics.get("flagged_reasons", {})
     if flagged_reasons:
@@ -168,7 +250,45 @@ def page_review_results() -> None:
             .mark_bar(radius=4)
             .encode(y=alt.Y("Reason", sort="-x"), x="Count", color="Reason")
         )
-        st.altair_chart(reason_chart, use_container_width=True)
+        st.altair_chart(reason_chart.interactive(), use_container_width=True)
+
+    records = [
+        {
+            "cluster_id": cluster["cluster_id"],
+            "primary_label": cluster.get("annotation", {}).get("primary_label"),
+            "status": cluster.get("status"),
+            "confidence": cluster.get("confidence"),
+            "warnings": " | ".join(cluster.get("warnings", [])),
+        }
+        for cluster in clusters
+    ]
+    csv_data = pd.DataFrame(records).to_csv(index=False).encode("utf-8")
+    json_data = json.dumps(report, indent=2).encode("utf-8")
+    pdf_data = _build_pdf_report(report)
+
+    dl_col1, dl_col2, dl_col3 = st.columns(3)
+    dl_col1.download_button(
+        "⬇️ Download CSV",
+        csv_data,
+        file_name="cellannot_report.csv",
+        mime="text/csv",
+    )
+    dl_col2.download_button(
+        "⬇️ Download JSON",
+        json_data,
+        file_name="cellannot_report.json",
+        mime="application/json",
+    )
+    dl_col3.download_button(
+        "⬇️ Download PDF",
+        pdf_data,
+        file_name="cellannot_report.pdf",
+        mime="application/pdf",
+    )
+
+    st.info(
+        "Tip: use your browser's *Print → Save as PDF* or screenshot utilities to capture charts for slides."  # noqa: E501
+    )
 
     for cluster in clusters:
         cluster_id = cluster["cluster_id"]
@@ -211,7 +331,7 @@ def page_single_cluster() -> None:
 
     markers = [gene.strip() for gene in markers_text.split(",") if gene.strip()]
 
-    if st.button("Annotate Cluster"):
+    if st.button("Annotate Cluster", type="primary"):
         if not markers:
             st.warning("Please provide at least one marker gene.")
         else:
@@ -227,6 +347,7 @@ def page_single_cluster() -> None:
                     st.error(f"Annotation failed: {exc}")
                     return
             st.session_state["single_cluster_result"] = response["result"]
+            _show_toast("Single cluster annotated", icon="🔬")
 
     result = st.session_state.get("single_cluster_result")
     if not result:
@@ -276,6 +397,7 @@ def page_single_cluster() -> None:
 def main() -> None:
     _ensure_session_state()
 
+    pages = ["Upload Markers", "Batch Annotate", "Review Results", "Single Cluster"]
     st.sidebar.title("CellAnnot-GPT")
     llm_mode = "unknown"
     badge_label = "API"
@@ -305,10 +427,9 @@ def main() -> None:
     if cache_enabled:
         st.sidebar.success("Redis cache active for repeated annotations.")
 
-    page = st.sidebar.radio(
-        "Navigation",
-        ("Upload Markers", "Batch Annotate", "Review Results", "Single Cluster"),
-    )
+    page = st.sidebar.radio("Navigation", pages)
+
+    _render_header(page, pages)
 
     if page == "Upload Markers":
         page_upload_markers()
