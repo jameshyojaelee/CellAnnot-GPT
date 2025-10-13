@@ -82,7 +82,7 @@ async def annotate_cluster(
         "context": context_dict,
         "llm_mode": annotator.llm_mode,
     }
-    if cache is not None:
+    if cache is not None and not payload.return_validated:
         cached = await cache.get(cache_payload)
         if cached is not None:
             logger.debug("Cache hit for cluster %s", payload.cluster.cluster_id)
@@ -110,9 +110,9 @@ async def annotate_cluster(
     )
     report_model = build_structured_report([annotation_record], crosschecked)
     report = report_model.model_dump()
-    if cache is not None:
+    if cache is not None and not payload.return_validated:
         await cache.set(cache_payload, report)
-    return AnnotationResponse(result=report)
+    return AnnotationResponse(result=report if payload.return_validated else report)
 
 
 @app.post("/annotate_batch", response_model=BatchAnnotationResponse)

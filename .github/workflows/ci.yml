@@ -4,6 +4,8 @@ on:
   push:
     branches: ["main", "develop"]
   pull_request:
+  schedule:
+    - cron: "0 3 * * *"
 
 jobs:
   build-test:
@@ -40,3 +42,58 @@ jobs:
 
       - name: Build Docker image
         run: docker build -t cellannot-gpt-ci .
+
+      - name: Log in to GHCR
+        if: github.ref == 'refs/heads/main'
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Tag and push image
+        if: github.ref == 'refs/heads/main'
+        run: |
+          IMAGE=ghcr.io/${{ github.repository }}/cellannot-gpt:${{ github.sha }}
+          docker tag cellannot-gpt-ci "$IMAGE"
+          docker push "$IMAGE"
+
+      - name: Run Trivy scan
+        uses: aquasecurity/trivy-action@0.13.0
+        with:
+          image-ref: cellannot-gpt-ci
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+
+  benchmarks:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install deps
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry install --no-interaction --with dev
+
+      - name: Run benchmarks (mock)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          poetry run python scripts/run_benchmarks.py --mock --output-dir docs/reports
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-reports
+          path: docs/reports

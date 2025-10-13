@@ -45,6 +45,16 @@ def annotate_batch(payload: Dict[str, Any]) -> Dict[str, Any]:
     return response.json()
 
 
+def annotate_cluster_api(payload: Dict[str, Any]) -> Dict[str, Any]:
+    response = requests.post(
+        f"{API_BASE_URL}/annotate_cluster",
+        json=payload,
+        timeout=60,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
 def status_badge(label: str, status: str) -> str:
     colors = {
         "ok": "#3CB371",

@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *.so
 .env
+.env.local
 .venv/
 venv/
 build/

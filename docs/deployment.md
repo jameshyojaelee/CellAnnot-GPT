@@ -63,8 +63,9 @@ ENVIRONMENT=development
 
 ## 6. Secrets Management
 - **Local development**: use `.env` (ignored by git) or Streamlit secrets (`.streamlit/secrets.toml`) for UI-specific keys.
-- **GitHub Actions**: store `OPENAI_API_KEY`, registry credentials, etc. as Repository Secrets. Reference them via `${{ secrets.OPENAI_API_KEY }}` inside workflows if needed.
-- **Runtime (staging/prod)**: prefer secret managers (AWS Secrets Manager, GCP Secret Manager, Hashicorp Vault) or orchestrator secret stores. Mount or export as env vars when starting containers.
+- **GitHub Actions / CI**: store `OPENAI_API_KEY`, `GHCR_TOKEN`, and other credentials as repository secrets. The workflow uses these to authenticate with GHCR and run benchmarks safely.
+- **Cloud secret stores**: in staging/production, prefer AWS Secrets Manager, Azure Key Vault, or GCP Secret Manager. Configure your orchestrator (Kubernetes, ECS) to inject values as env vars or mounted files.
+- **Auditing**: rotate secrets regularly, restrict access, and monitor CI logs for leakage. Use Trivy scanning in CI to catch known vulnerabilities before shipping images.
 
 ## 7. CI/CD Flow
 1. GitHub Actions workflow `.github/workflows/ci.yml` runs lint, tests, and Docker build on every commit/PR.

@@ -24,13 +24,22 @@ def render_markdown_report(result: Dict) -> str:
 
 
 def render_text_confusion_matrix(result: Dict) -> str:
-    labels = sorted(result["per_class"].keys())
+    truth_labels = sorted({row["ground_truth"] for row in result["predictions"]})
+    pred_labels = sorted({row["predicted"] for row in result["predictions"]})
+    labels = sorted(set(truth_labels) | set(pred_labels))
     matrix_lines = ["Confusion Matrix (rows=truth, cols=prediction)"]
     header = "\t".join([" "] + labels)
     matrix_lines.append(header)
     counts = {label: {l: 0 for l in labels} for label in labels}
     for row in result["predictions"]:
-        counts[row["ground_truth"]][row["predicted"]] += 1
+        truth = row.get("ground_truth")
+        pred = row.get("predicted")
+        if truth not in counts:
+            counts[truth] = {l: 0 for l in labels}
+        if pred not in counts:
+            for key in counts:
+                counts[key].setdefault(pred, 0)
+        counts[truth][pred] += 1
     for truth in labels:
         row_counts = "\t".join(str(counts[truth][pred]) for pred in labels)
         matrix_lines.append(f"{truth}\t{row_counts}")

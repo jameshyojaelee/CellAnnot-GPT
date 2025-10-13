@@ -7,7 +7,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-from frontend.utils import annotate_batch, format_summary, get_health, status_badge
+from frontend.utils import annotate_batch, annotate_cluster_api, format_summary, get_health, status_badge
 
 st.set_page_config(page_title="CellAnnot-GPT", layout="wide")
 
@@ -15,6 +15,7 @@ st.set_page_config(page_title="CellAnnot-GPT", layout="wide")
 def _ensure_session_state() -> None:
     st.session_state.setdefault("uploaded_clusters", [])
     st.session_state.setdefault("batch_result", None)
+    st.session_state.setdefault("single_cluster_result", None)
 
 
 def _parse_marker_field(value: Any) -> List[str]:
@@ -198,6 +199,80 @@ def page_review_results() -> None:
                 st.json(validation or {})
 
 
+def page_single_cluster() -> None:
+    st.header("Single Cluster Annotation")
+    species = st.text_input("Species", value="Homo sapiens")
+    tissue = st.text_input("Tissue / Compartment", value="")
+    markers_text = st.text_area(
+        "Marker genes",
+        placeholder="Enter markers separated by commas (e.g. MS4A1, CD79A, CD74)",
+        height=100,
+    )
+
+    markers = [gene.strip() for gene in markers_text.split(",") if gene.strip()]
+
+    if st.button("Annotate Cluster"):
+        if not markers:
+            st.warning("Please provide at least one marker gene.")
+        else:
+            payload = {
+                "cluster": {"cluster_id": "single", "markers": markers},
+                "dataset_context": {k: v for k, v in [("species", species), ("tissue", tissue)] if v},
+                "return_validated": True,
+            }
+            with st.spinner("Annotating..."):
+                try:
+                    response = annotate_cluster_api(payload)
+                except Exception as exc:  # noqa: BLE001
+                    st.error(f"Annotation failed: {exc}")
+                    return
+            st.session_state["single_cluster_result"] = response["result"]
+
+    result = st.session_state.get("single_cluster_result")
+    if not result:
+        return
+
+    summary = result.get("summary", {})
+    cluster = result.get("clusters", [{}])[0]
+    annotation = cluster.get("annotation", {})
+    validation = cluster.get("validation")
+    warnings = cluster.get("warnings", [])
+    status = cluster.get("status", "supported").title()
+    confidence = annotation.get("confidence", "Unknown")
+    primary_label = annotation.get("primary_label", "Unknown or Novel")
+
+    badge_color = "green" if status == "Supported" else "orange"
+    st.markdown(
+        f"<span style='padding:6px 12px;border-radius:12px;background:{badge_color};color:white;'>"
+        f"{status}</span>",
+        unsafe_allow_html=True,
+    )
+    st.subheader(f"Prediction: {primary_label}")
+    st.write(f"**Confidence:** {confidence}")
+
+    if primary_label.lower().startswith("unknown"):
+        st.warning("Model suggests this cluster may represent a novel or uncertain cell type.")
+        st.info("Follow-up: inspect markers manually, consult domain experts, or gather additional data.")
+
+    if warnings:
+        st.error("\n".join(warnings))
+    else:
+        st.success("Markers align with known references.")
+
+    st.write("### Annotation Details")
+    st.json(annotation)
+
+    st.write("### Validation")
+    st.json(validation or {})
+
+    explanation = annotation.get("rationale", "")
+    btn = st.download_button(
+        "Download Explanation",
+        explanation.encode("utf-8"),
+        file_name="cluster_explanation.txt",
+        mime="text/plain",
+    )
+
 def main() -> None:
     _ensure_session_state()
 
@@ -232,15 +307,17 @@ def main() -> None:
 
     page = st.sidebar.radio(
         "Navigation",
-        ("Upload Markers", "Batch Annotate", "Review Results"),
+        ("Upload Markers", "Batch Annotate", "Review Results", "Single Cluster"),
     )
 
     if page == "Upload Markers":
         page_upload_markers()
     elif page == "Batch Annotate":
         page_batch_annotate()
-    else:
+    elif page == "Review Results":
         page_review_results()
+    else:
+        page_single_cluster()
 
 
 if __name__ == "__main__":

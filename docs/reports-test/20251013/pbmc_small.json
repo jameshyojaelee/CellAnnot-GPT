@@ -1,0 +1,31 @@
+{
+  "dataset": "pbmc_small",
+  "accuracy": 0.5,
+  "macro_f1": 0.3333333333333333,
+  "per_class": {
+    "B cell": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "T cell": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    }
+  },
+  "predictions": [
+    {
+      "cluster_id": "0",
+      "ground_truth": "B cell",
+      "predicted": "B cell",
+      "rationale": "Matched markers: CD79A, MS4A1"
+    },
+    {
+      "cluster_id": "1",
+      "ground_truth": "T cell",
+      "predicted": "CD8 T cell",
+      "rationale": "Matched markers: CD3D"
+    }
+  ]
+}

@@ -28,6 +28,7 @@ class DatasetContext(BaseModel):
 class AnnotateClusterRequest(BaseModel):
     cluster: ClusterPayload
     dataset_context: Optional[DatasetContext] = None
+    return_validated: bool = False
 
 
 class AnnotateBatchRequest(BaseModel):

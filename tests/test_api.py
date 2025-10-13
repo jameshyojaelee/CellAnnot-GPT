@@ -91,6 +91,7 @@ def test_annotate_cluster_endpoint():
             "markers": ["MS4A1"],
         },
         "dataset_context": {"species": "Homo sapiens", "tissue": "Blood"},
+        "return_validated": True,
     }
     response = client.post("/annotate_cluster", json=payload)
     assert response.status_code == 200
