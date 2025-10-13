@@ -399,6 +399,10 @@ def main() -> None:
 
     pages = ["Upload Markers", "Batch Annotate", "Review Results", "Single Cluster"]
     st.sidebar.title("CellAnnot-GPT")
+    st.sidebar.markdown(
+        "[Getting Started](docs/getting_started.md) · [API Reference](docs/api_reference.md) · [Operations](docs/operations.md)",
+        unsafe_allow_html=True,
+    )
     llm_mode = "unknown"
     badge_label = "API"
     cache_enabled = False

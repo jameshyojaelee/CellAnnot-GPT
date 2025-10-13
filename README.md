@@ -45,6 +45,10 @@ curl -s -X POST http://127.0.0.1:8000/annotate_batch \
 
 ## Key Features
 
+[![Getting Started](https://img.shields.io/badge/docs-getting_started-blue)](docs/getting_started.md)
+[![API Reference](https://img.shields.io/badge/docs-api_reference-green)](docs/api_reference.md)
+[![Operations](https://img.shields.io/badge/docs-operations-purple)](docs/operations.md)
+
 - Marker knowledge ingestion from PanglaoDB, CellMarker, and curated literature.
 - Prompt-engineered LLM annotation engine with batch support and uncertainty handling.
 - Validation layer cross-checking LLM outputs against marker databases.

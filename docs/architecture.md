@@ -1,21 +1,37 @@
 # Architecture Overview
 
-## Diagram (Textual)
+## Diagram
 
-```
-User UI (Streamlit)
-      │
-      ▼
-FastAPI Service ──▶ Annotation Engine (LLM Client)
-      │                      │
-      │                      ├── Prompt Templates
-      │                      └── Rate-limited OpenAI Interface
-      │
-      ├── Validation Layer ──▶ Marker Knowledge Store (SQLite/Parquet)
-      │                              ▲
-      │                              │
-      └── Reporting Output ◀─────────┘
-Benchmark Toolkit ↔ FastAPI/Engine (offline evaluation)
+```mermaid
+graph LR
+    subgraph UI
+        A[Streamlit Dashboard]
+    end
+    subgraph API
+        B(FastAPI Service)
+        C[Annotation Engine]
+        D[Validation Layer]
+    end
+    subgraph Data
+        E[(Marker DB: Parquet/SQLite)]
+    end
+    subgraph Ops
+        F[Redis Cache]
+        G[Structlog JSON Logs]
+    end
+
+    A -->|markers| B
+    B --> C
+    C -->|responses| B
+    C -->|queries| D
+    D -->|cross-checks| E
+    B -->|reports| A
+    B -->|trace/log| G
+    B -->|cached results| F
+    subgraph Tooling
+        H[Benchmark Runner]
+    end
+    H --> C
 ```
 
 ## Components
