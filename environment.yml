@@ -25,3 +25,4 @@ dependencies:
       - mypy==1.10.0
       - ruff==0.4.4
       - poethepoet==0.27.0
+      - pydantic-settings==2.3.4

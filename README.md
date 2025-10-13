@@ -18,6 +18,26 @@ poetry run uvicorn backend.api.main:app --reload
 
 # Run Streamlit UI in another terminal
 poetry run streamlit run frontend/streamlit_app.py
+
+# Sample API calls (after backend is running on localhost:8000)
+curl -s http://127.0.0.1:8000/health
+
+curl -s -X POST http://127.0.0.1:8000/annotate_cluster \
+  -H "Content-Type: application/json" \
+  -d '{
+        "cluster": {"cluster_id": "0", "markers": ["MS4A1", "CD79A"]},
+        "dataset_context": {"species": "Homo sapiens", "tissue": "Blood"}
+      }'
+
+curl -s -X POST http://127.0.0.1:8000/annotate_batch \
+  -H "Content-Type: application/json" \
+  -d '{
+        "clusters": [
+          {"cluster_id": "0", "markers": ["MS4A1"]},
+          {"cluster_id": "1", "markers": ["CD3E"]}
+        ],
+        "dataset_context": {"species": "Homo sapiens"}
+      }'
 ```
 
 ## Key Features

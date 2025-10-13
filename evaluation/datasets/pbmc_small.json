@@ -1,0 +1,19 @@
+{
+  "dataset_name": "pbmc_small",
+  "dataset_context": {
+    "species": "Homo sapiens",
+    "tissue": "Peripheral blood"
+  },
+  "clusters": [
+    {
+      "cluster_id": "0",
+      "ground_truth": "B cell",
+      "markers": ["MS4A1", "CD79A"]
+    },
+    {
+      "cluster_id": "1",
+      "ground_truth": "T cell",
+      "markers": ["CD3D", "CD2"]
+    }
+  ]
+}
