@@ -19,6 +19,9 @@ poetry run uvicorn backend.api.main:app --reload
 # Run Streamlit UI in another terminal
 poetry run streamlit run frontend/streamlit_app.py
 
+# Docker (optional)
+docker compose up --build
+
 # Sample API calls (after backend is running on localhost:8000)
 curl -s http://127.0.0.1:8000/health
 

@@ -12,21 +12,12 @@ RUN curl -sSL https://install.python-poetry.org | python3 -
 ENV PATH="/root/.local/bin:$PATH"
 
 WORKDIR /app
-COPY pyproject.toml README.md .
-COPY poetry.lock poetry.lock
-RUN poetry config virtualenvs.in-project true && poetry install --no-root --no-interaction --only main
+COPY pyproject.toml ./
+RUN poetry config virtualenvs.in-project true \
+    && poetry install --no-root --no-interaction --only main
 
-COPY backend backend
-COPY frontend frontend
-COPY evaluation evaluation
-COPY config config
-COPY scripts scripts
-COPY schemas schemas
-COPY docs docs
-COPY prompts.md prompts.md
-COPY data data
-
-RUN poetry install --no-interaction
+COPY . .
+RUN poetry install --no-interaction --only main
 
 FROM python:3.11-slim AS runtime
 WORKDIR /app
