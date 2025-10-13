@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     environment: str = Field(default="development")
     data_dir: str = Field(default="data/processed")
     redis_url: str = Field(default="", alias="REDIS_URL")
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
     class Config:
         env_file = ".env"

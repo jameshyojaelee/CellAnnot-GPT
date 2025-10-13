@@ -7,6 +7,7 @@ from typing import Dict, Iterable, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, status
 
+from backend.api.logging_config import configure_logging
 from backend.api.middleware import logging_middleware
 from backend.api.models import (
     AnnotateBatchRequest,
@@ -26,6 +27,8 @@ import pandas as pd
 logger = logging.getLogger("cellannot.api")
 settings = get_settings()
 _CACHE = create_cache_from_env(settings.redis_url)
+
+configure_logging(settings.log_level if hasattr(settings, "log_level") else "INFO")
 
 
 def get_annotator() -> Annotator:

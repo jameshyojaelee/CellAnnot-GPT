@@ -30,3 +30,4 @@ dependencies:
       - pydantic-settings==2.3.4
       - fakeredis==2.23.2
       - fpdf2==2.7.0
+      - structlog==24.1.0
