@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cellannot-gpt.org/schemas/annotation_result.schema.json",
+  "title": "CellAnnotGPTAnnotationResult",
+  "type": "object",
+  "required": ["summary", "clusters"],
+  "properties": {
+    "summary": {
+      "type": "object",
+      "required": ["total_clusters", "supported_clusters", "flagged_clusters", "unknown_clusters"],
+      "properties": {
+        "total_clusters": {"type": "integer", "minimum": 0},
+        "supported_clusters": {"type": "integer", "minimum": 0},
+        "flagged_clusters": {"type": "integer", "minimum": 0},
+        "unknown_clusters": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "clusters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["cluster_id", "annotation", "validation", "warnings"],
+        "properties": {
+          "cluster_id": {"type": "string"},
+          "annotation": {
+            "type": "object",
+            "required": ["primary_label", "confidence", "rationale"],
+            "properties": {
+              "cluster_id": {"type": ["string", "null"]},
+              "primary_label": {"type": "string"},
+              "ontology_id": {"type": ["string", "null"]},
+              "confidence": {"type": "string"},
+              "rationale": {"type": "string"},
+              "alternatives": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["label", "reason"],
+                  "properties": {
+                    "label": {"type": "string"},
+                    "reason": {"type": "string"}
+                  },
+                  "additionalProperties": true
+                }
+              },
+              "caveats": {"type": ["string", "null"]},
+              "markers": {
+                "type": "array",
+                "items": {"type": "string"}
+              }
+            },
+            "additionalProperties": true
+          },
+          "validation": {
+            "type": ["object", "null"],
+            "properties": {
+              "cluster_id": {"type": "string"},
+              "primary_label": {"type": "string"},
+              "ontology_id": {"type": ["string", "null"]},
+              "is_supported": {"type": "boolean"},
+              "supporting_markers": {
+                "type": "array",
+                "items": {"type": "string"}
+              },
+              "missing_markers": {
+                "type": "array",
+                "items": {"type": "string"}
+              },
+              "contradictory_markers": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "array",
+                  "items": {"type": "string"}
+                }
+              },
+              "ontology_mismatch": {"type": "boolean"},
+              "notes": {
+                "type": "array",
+                "items": {"type": "string"}
+              }
+            },
+            "additionalProperties": false
+          },
+          "warnings": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
