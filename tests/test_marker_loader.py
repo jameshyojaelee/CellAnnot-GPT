@@ -7,7 +7,9 @@ import pandas as pd
 import pytest
 
 from backend.data_ingest.marker_loader import (
+    ChecksumMismatchError,
     MarkerDataLoader,
+    SourceResolutionError,
     SourceConfig,
     NORMALIZED_COLUMNS,
     parse_cellmarker,
@@ -31,7 +33,7 @@ class FakeClient:
     def __init__(self, payloads: dict[str, bytes]) -> None:
         self._payloads = payloads
 
-    def get(self, url: str) -> FakeResponse:
+    def get(self, url: str, follow_redirects: bool = False) -> FakeResponse:
         try:
             return FakeResponse(self._payloads[url])
         except KeyError as exc:
@@ -100,8 +102,11 @@ def test_marker_loader_normalizes_sources(tmp_path: Path, sample_payloads: dict[
     )
 
     df = loader.run(write_parquet=True, write_sqlite=True)
-    assert set(df.columns) == set(NORMALIZED_COLUMNS)
+    assert set(NORMALIZED_COLUMNS).issubset(df.columns)
     assert len(df) == 3
+    assert "source_version" in df.columns
+    scores = dict(zip(df["cell_type"], df["evidence_score"]))
+    assert scores["CD4 T cell"] == "medium"
 
     parquet_path = tmp_path / "markers.parquet"
     sqlite_path = tmp_path / "markers.sqlite"
@@ -157,4 +162,70 @@ def test_load_sources_from_yaml_local_only(tmp_path: Path) -> None:
     loader = MarkerDataLoader(sources, storage_dir=tmp_path)
     df = loader.run(local_only=True)
     assert len(df) == 2
-    assert set(df.columns) == set(NORMALIZED_COLUMNS)
+    assert set(NORMALIZED_COLUMNS).issubset(df.columns)
+    assert df["evidence_score"].isin({"low", "medium", "high"}).all()
+
+
+def test_schema_validation_catches_missing_columns(tmp_path: Path) -> None:
+    def broken_parser(payload: bytes, source: str) -> pd.DataFrame:
+        return pd.DataFrame({"source": [source], "cell_type": ["foo"], "species": ["Homo sapiens"]})
+
+    sources = [
+        SourceConfig(
+            name="Broken",
+            fmt="csv",
+            parser=broken_parser,
+            url="https://example.org/broken.csv",
+        )
+    ]
+    client = FakeClient({"https://example.org/broken.csv": b"dummy"})
+    loader = MarkerDataLoader(sources, storage_dir=tmp_path, http_client=client)
+
+    with pytest.raises(ValueError, match="missing required columns"):
+        loader.run()
+
+
+def test_checksum_enforcement(tmp_path: Path) -> None:
+    content = (
+        "cell_type,gene,organ,species,evidence,reference\n"
+        "B cell,MS4A1,Blood,Homo sapiens,Validated marker,https://example.org\n"
+    ).encode()
+    sources = [
+        SourceConfig(
+            name="PanglaoChecksum",
+            fmt="csv",
+            parser=parse_panglaodb,
+            url="https://example.org/panglao.csv",
+            checksum="deadbeef",
+        )
+    ]
+    client = FakeClient({"https://example.org/panglao.csv": content})
+    loader = MarkerDataLoader(sources, storage_dir=tmp_path, http_client=client)
+
+    with pytest.raises(ChecksumMismatchError):
+        loader.run(enforce_checksums=True)
+
+
+def test_source_resolution_error(tmp_path: Path) -> None:
+    sources = [
+        SourceConfig(
+            name="Missing",
+            fmt="csv",
+            parser=parse_panglaodb,
+            local_path=tmp_path / "does_not_exist.csv",
+        )
+    ]
+    loader = MarkerDataLoader(sources, storage_dir=tmp_path)
+
+    with pytest.raises(SourceResolutionError):
+        loader.run(local_only=True)
+
+
+def test_fixture_sources_yaml_round_trip(tmp_path: Path) -> None:
+    fixtures_yaml = Path(__file__).parent / "fixtures" / "marker_sources" / "sources.yaml"
+    sources = load_sources_from_yaml(fixtures_yaml)
+    loader = MarkerDataLoader(sources, storage_dir=tmp_path)
+    df = loader.run(local_only=True)
+    assert len(df) == 4
+    assert df["evidence_score"].isin({"low", "medium", "high"}).all()
+    assert set(df["source"]).issuperset({"PanglaoFixture", "CellMarkerFixture"})

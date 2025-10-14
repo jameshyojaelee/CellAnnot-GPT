@@ -6,7 +6,9 @@ import argparse
 from pathlib import Path
 
 from backend.data_ingest.marker_loader import (
+    ChecksumMismatchError,
     MarkerDataLoader,
+    SourceResolutionError,
     default_sources,
     load_sources_from_yaml,
 )
@@ -41,6 +43,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Use only local files; skip network downloads.",
     )
+    parser.add_argument(
+        "--verify-checksums",
+        action="store_true",
+        help="Fail if downloaded sources do not match configured checksums.",
+    )
     return parser.parse_args()
 
 
@@ -63,7 +70,18 @@ def main() -> None:
     write_parquet = not args.skip_parquet
     write_sqlite = not args.skip_sqlite
 
-    df = loader.run(write_parquet=write_parquet, write_sqlite=write_sqlite, local_only=args.local_only)
+    try:
+        df = loader.run(
+            write_parquet=write_parquet,
+            write_sqlite=write_sqlite,
+            local_only=args.local_only,
+            enforce_checksums=args.verify_checksums,
+        )
+    except SourceResolutionError as exc:
+        raise SystemExit(f"[cellannot] Unable to resolve any marker sources: {exc}") from exc
+    except ChecksumMismatchError as exc:
+        raise SystemExit(f"[cellannot] Checksum verification failed: {exc}") from exc
+
     print(  # noqa: T201
         f"Ingested {len(df)} marker records from {len(loader.sources)} sources into {args.output_dir}"
     )

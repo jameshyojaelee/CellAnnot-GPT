@@ -11,3 +11,4 @@ pytest_cache/
 .ruff_cache/
 data/raw
 node_modules
+.prompts.md

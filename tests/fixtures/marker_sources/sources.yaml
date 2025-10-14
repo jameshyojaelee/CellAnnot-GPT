@@ -1,0 +1,14 @@
+sources:
+  - name: PanglaoFixture
+    fmt: csv
+    parser: panglaodb
+    local_path: tests/fixtures/marker_sources/panglao.csv
+    checksum: ""
+    metadata:
+      version: "fixture-1"
+  - name: CellMarkerFixture
+    fmt: csv
+    parser: cellmarker
+    local_path: tests/fixtures/marker_sources/cellmarker.csv
+    metadata:
+      version: "fixture-1"

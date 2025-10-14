@@ -27,8 +27,14 @@ cp .env.template .env
 
 ## 3. Run the stack locally
 ```bash
-# Build marker knowledge base (uses config/marker_sources.yaml)
+# Build marker knowledge base (downloads remote sources by default)
+poetry run python scripts/build_marker_db.py
+
+# Offline mode → stick to bundled demo assets
 poetry run python scripts/build_marker_db.py --local-only
+
+# Verify downloaded snapshots against checksums in config/marker_sources.yaml
+poetry run python scripts/build_marker_db.py --verify-checksums
 
 # Start FastAPI backend
 poetry run uvicorn backend.api.main:app --reload
@@ -36,7 +42,7 @@ poetry run uvicorn backend.api.main:app --reload
 # In another terminal, launch the Streamlit UI
 poetry run streamlit run frontend/streamlit_app.py
 ```
-Visit `http://localhost:8501` to explore the dashboard.
+Visit `http://localhost:8501` to explore the dashboard. Each entry in `config/marker_sources.yaml` records a live download URL, checksum, and version tag. Pass `--local-only` to reuse the bundled demo assets or `--verify-checksums` to enforce snapshot pinning during ingestion.
 
 ## 4. Run tests
 ```bash

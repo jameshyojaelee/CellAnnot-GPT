@@ -11,6 +11,7 @@ unified tabular schema with the following columns:
 - tissue: tissue or compartment context when available.
 - evidence: free-text evidence string (score, logFC, citation snippet, etc.).
 - reference: URL or citation to the supporting resource.
+- evidence_score: heuristic label capturing strength of the evidence text.
 
 The data can be materialized as Parquet (columnar analytics) and/or SQLite for
 lightweight querying inside the application.
@@ -18,13 +19,14 @@ lightweight querying inside the application.
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import logging
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set
 
 import httpx
 import pandas as pd
@@ -41,7 +43,10 @@ NORMALIZED_COLUMNS = [
     "tissue",
     "evidence",
     "reference",
+    "evidence_score",
 ]
+
+EVIDENCE_SCORE_COLUMN = "evidence_score"
 
 
 @dataclass
@@ -54,6 +59,17 @@ class SourceConfig:
     metadata: Dict[str, str] = field(default_factory=dict)
     url: Optional[str] = None
     local_path: Optional[Path] = None
+    required_columns: Optional[Sequence[str]] = None
+    checksum: Optional[str] = None
+    checksum_algorithm: str = "sha256"
+
+
+class SourceResolutionError(RuntimeError):
+    """Raised when a source cannot be resolved from local or remote locations."""
+
+
+class ChecksumMismatchError(RuntimeError):
+    """Raised when the downloaded payload does not match the expected checksum."""
 
 
 def parse_panglaodb(payload: bytes, source: str) -> pd.DataFrame:
@@ -77,7 +93,8 @@ def parse_panglaodb(payload: bytes, source: str) -> pd.DataFrame:
             "reference": df["reference"],
         }
     )
-    return normalized[NORMALIZED_COLUMNS]
+    normalized[EVIDENCE_SCORE_COLUMN] = ""
+    return normalized.reindex(columns=NORMALIZED_COLUMNS, fill_value="")
 
 
 def parse_cellmarker(payload: bytes, source: str) -> pd.DataFrame:
@@ -103,7 +120,8 @@ def parse_cellmarker(payload: bytes, source: str) -> pd.DataFrame:
             "reference": references,
         }
     )
-    return normalized[NORMALIZED_COLUMNS]
+    normalized[EVIDENCE_SCORE_COLUMN] = ""
+    return normalized.reindex(columns=NORMALIZED_COLUMNS, fill_value="")
 
 
 def parse_curated_json(payload: bytes, source: str) -> pd.DataFrame:
@@ -129,6 +147,53 @@ def parse_curated_json(payload: bytes, source: str) -> pd.DataFrame:
         )
 
     df = pd.DataFrame(normalized, columns=NORMALIZED_COLUMNS)
+    return df
+
+
+def compute_checksum(payload: bytes, algorithm: str) -> str:
+    """Return the hexadecimal digest for the given payload."""
+
+    try:
+        hasher = getattr(hashlib, algorithm)
+    except AttributeError as exc:
+        raise ValueError(f"Unsupported checksum algorithm '{algorithm}'") from exc
+    return hasher(payload).hexdigest()
+
+
+def classify_evidence_strength(evidence: str) -> str:
+    """Heuristically score evidence strings as low/medium/high."""
+
+    if not evidence:
+        return "low"
+
+    text = evidence.lower()
+    score = 0
+    if any(token in text for token in ("logfc", "fold change", "lfc", "log2fc", "effect size")):
+        score += 2
+    if any(token in text for token in ("p-value", "p<", "adjusted p", "padj", "fdr", "q-value")):
+        score += 2
+    if any(token in text for token in ("single-cell", "scrna", "rna-seq", "bulk", "proteomics")):
+        score += 1
+    if any(token in text for token in ("validated", "marker", "signature", "score")):
+        score += 1
+
+    if score >= 4:
+        return "high"
+    if score >= 2:
+        return "medium"
+    return "low"
+
+
+def ensure_evidence_scores(df: pd.DataFrame) -> pd.DataFrame:
+    """Populate the evidence_score column if missing."""
+
+    if EVIDENCE_SCORE_COLUMN not in df.columns:
+        df[EVIDENCE_SCORE_COLUMN] = df["evidence"].fillna("").map(classify_evidence_strength)
+    else:
+        df[EVIDENCE_SCORE_COLUMN] = df[EVIDENCE_SCORE_COLUMN].fillna("").where(
+            df[EVIDENCE_SCORE_COLUMN].astype(bool),
+            df["evidence"].fillna("").map(classify_evidence_strength),
+        )
     return df
 
 
@@ -165,30 +230,107 @@ class MarkerDataLoader:
         if self._owns_client:
             self._http_client.close()
 
-    def _fetch(self, source: SourceConfig, *, local_only: bool = False) -> bytes:
-        if source.local_path and source.local_path.exists():
-            return source.local_path.read_bytes()
-        if local_only:
-            raise FileNotFoundError(f"Local file for source '{source.name}' not found and local-only mode enabled.")
-        if not source.url:
-            raise ValueError(f"Source '{source.name}' missing URL and local path.")
-        response = self._http_client.get(source.url)
-        response.raise_for_status()
-        return response.content
+    def _fetch(
+        self,
+        source: SourceConfig,
+        *,
+        local_only: bool = False,
+        enforce_checksums: bool = False,
+    ) -> bytes:
+        """Return raw bytes for a source, preferring local assets when present."""
 
-    def load_all(self, *, local_only: bool = False) -> pd.DataFrame:
+        resolution_path = None
+        if source.local_path and source.local_path.exists():
+            resolution_path = str(source.local_path)
+            payload = source.local_path.read_bytes()
+        else:
+            if local_only:
+                raise SourceResolutionError(
+                    f"Local file for source '{source.name}' not found and local-only mode enabled."
+                )
+            if not source.url:
+                raise SourceResolutionError(f"Source '{source.name}' missing URL and local path.")
+            try:
+                response = self._http_client.get(str(source.url), follow_redirects=True)
+                response.raise_for_status()
+            except httpx.HTTPError as exc:
+                raise SourceResolutionError(f"Failed to download '{source.name}' from {source.url}: {exc}") from exc
+            payload = response.content
+            resolution_path = source.url
+
+        if source.checksum:
+            digest = compute_checksum(payload, source.checksum_algorithm)
+            if enforce_checksums and digest.lower() != source.checksum.lower():
+                raise ChecksumMismatchError(
+                    f"{source.name} checksum mismatch: expected {source.checksum}, got {digest}"
+                )
+            if digest.lower() != (source.checksum or "").lower():
+                logger.debug("Checksum for %s (computed=%s)", source.name, digest)
+        logger.debug("Resolved source %s via %s", source.name, resolution_path)
+        return payload
+
+    def _validate_schema(self, df: pd.DataFrame, source: SourceConfig) -> None:
+        """Ensure the normalized dataset contains required columns."""
+
+        required: Set[str]
+        if source.required_columns:
+            required = {col for col in source.required_columns}
+        else:
+            required = set(NORMALIZED_COLUMNS) - {EVIDENCE_SCORE_COLUMN}
+
+        missing = required - set(df.columns)
+        if missing:
+            raise ValueError(f"{source.name} missing required columns after parsing: {', '.join(sorted(missing))}")
+
+    def _normalise_frame(self, df: pd.DataFrame, source: SourceConfig) -> pd.DataFrame:
+        """Apply common cleanup to parsed frames."""
+
+        self._validate_schema(df, source)
+        df = ensure_evidence_scores(df)
+        if source.metadata.get("version"):
+            df["source_version"] = source.metadata["version"]
+        else:
+            df["source_version"] = ""
+        return df
+
+    def load_all(self, *, local_only: bool = False, enforce_checksums: bool = False) -> pd.DataFrame:
         frames: List[pd.DataFrame] = []
+        resolved_sources = 0
+        resolution_errors: List[str] = []
+
         for cfg in self.sources:
-            payload = self._fetch(cfg, local_only=local_only)
-            df = cfg.parser(payload, cfg.name)
-            missing = set(NORMALIZED_COLUMNS) - set(df.columns)
-            if missing:
-                raise ValueError(f"{cfg.name} parser returned missing columns: {missing}")
+            try:
+                payload = self._fetch(cfg, local_only=local_only, enforce_checksums=enforce_checksums)
+            except ChecksumMismatchError as exc:
+                logger.error("Checksum verification failed for %s: %s", cfg.name, exc)
+                raise
+            except SourceResolutionError as exc:
+                resolution_errors.append(f"{cfg.name}: {exc}")
+                logger.warning("%s", exc)
+                continue
+
+            resolved_sources += 1
+            try:
+                df = cfg.parser(payload, cfg.name)
+            except Exception as exc:  # noqa: BLE001 - bubble up parser issues with context
+                raise ValueError(f"{cfg.name} parser failed: {exc}") from exc
+
+            df = self._normalise_frame(df, cfg)
             frames.append(df)
+
+        if resolved_sources == 0:
+            joined = "; ".join(resolution_errors) or "no sources configured"
+            raise SourceResolutionError(f"Failed to resolve any marker sources ({joined})")
+
         if not frames:
-            raise ValueError("No data sources configured")
+            raise ValueError("Resolved sources but no marker records were produced")
+
         combined = pd.concat(frames, ignore_index=True)
         combined = combined.drop_duplicates(subset=["source", "cell_type", "gene_symbol", "species"])
+        # ensure column order for downstream consumers
+        ordered_cols = [col for col in NORMALIZED_COLUMNS if col in combined.columns]
+        remaining_cols = [col for col in combined.columns if col not in ordered_cols]
+        combined = combined.loc[:, ordered_cols + remaining_cols]
         return combined
 
     def write_to_parquet(self, df: pd.DataFrame) -> Path:
@@ -208,9 +350,10 @@ class MarkerDataLoader:
         write_parquet: bool = True,
         write_sqlite: bool = True,
         local_only: bool = False,
+        enforce_checksums: bool = False,
     ) -> pd.DataFrame:
         try:
-            df = self.load_all(local_only=local_only)
+            df = self.load_all(local_only=local_only, enforce_checksums=enforce_checksums)
             if write_parquet:
                 self.write_to_parquet(df)
             if write_sqlite:
@@ -242,6 +385,9 @@ def load_sources_from_yaml(path: Path) -> List[SourceConfig]:
             metadata=entry.get("metadata", {}),
             url=entry.get("url"),
             local_path=Path(local_path) if local_path else None,
+            required_columns=entry.get("required_columns"),
+            checksum=entry.get("checksum"),
+            checksum_algorithm=entry.get("checksum_algorithm", "sha256"),
         )
         sources.append(source)
     return sources
