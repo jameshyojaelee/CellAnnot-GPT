@@ -17,6 +17,7 @@ redis==5.0.4
 altair==5.3.0
 fpdf2==2.7.0
 structlog==24.1.0
+jsonschema==4.25.0
 
 # Dev dependencies
 pytest==8.2.1

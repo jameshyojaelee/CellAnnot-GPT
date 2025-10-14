@@ -25,31 +25,47 @@ pip install -r requirements.txt
 cp .env.template .env
 ```
 
+### Recommended: reproducible virtual environment
+```bash
+# Create a Python 3.11 virtualenv with uv and install dependencies
+./scripts/setup_env.sh
+
+# (Optional) verify PATH cleanliness on shared clusters
+unset PYTHONPATH
+```
+After running the script, activate the environment with `source .venv/bin/activate` (or prefix commands with `.venv/bin/python`). On HPC systems that preload system site-packages, keep `PYTHONPATH` empty when running tooling. A helper is available:
+```bash
+# Run the test suite with path isolation
+./scripts/run_tests.sh
+```
+
 ## 3. Run the stack locally
 ```bash
 # Build marker knowledge base (downloads remote sources by default)
-poetry run python scripts/build_marker_db.py
+.venv/bin/python scripts/build_marker_db.py
 
 # Offline mode → stick to bundled demo assets
-poetry run python scripts/build_marker_db.py --local-only
+.venv/bin/python scripts/build_marker_db.py --local-only
 
 # Verify downloaded snapshots against checksums in config/marker_sources.yaml
-poetry run python scripts/build_marker_db.py --verify-checksums
+.venv/bin/python scripts/build_marker_db.py --verify-checksums
 
 # Start FastAPI backend
-poetry run uvicorn backend.api.main:app --reload
+.venv/bin/uvicorn backend.api.main:app --reload
 
 # In another terminal, launch the Streamlit UI
-poetry run streamlit run frontend/streamlit_app.py
+.venv/bin/streamlit run frontend/streamlit_app.py
 ```
 Visit `http://localhost:8501` to explore the dashboard. Each entry in `config/marker_sources.yaml` records a live download URL, checksum, and version tag. Pass `--local-only` to reuse the bundled demo assets or `--verify-checksums` to enforce snapshot pinning during ingestion.
+> Prefer Poetry? Replace `.venv/bin/<command>` with `poetry run <command>`.
 
 ## 4. Run tests
 ```bash
-poetry run pytest            # full test suite
-poetry run ruff check        # lint
-poetry run mypy backend      # type checks
+./scripts/run_tests.sh       # full test suite (path-safe)
+.venv/bin/ruff check backend frontend evaluation scripts config tests
+.venv/bin/mypy backend
 ```
+Poetry users can substitute `poetry run` for the `.venv/bin/…` invocations.
 
 ## 5. Sample workflows
 - **Batch annotation**: upload `data/demo/pbmc_markers.csv` via the UI and review results.

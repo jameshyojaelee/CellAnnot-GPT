@@ -84,12 +84,17 @@ async def annotate_cluster(
         "markers": sorted(payload.cluster.markers),
         "context": context_dict,
         "llm_mode": annotator.llm_mode,
+        "validated": payload.return_validated,
     }
     if cache is not None and not payload.return_validated:
-        cached = await cache.get(cache_payload)
-        if cached is not None:
-            logger.debug("Cache hit for cluster %s", payload.cluster.cluster_id)
-            return AnnotationResponse(result=cached)
+        try:
+            cached = await cache.get(cache_payload)
+        except Exception as exc:  # pragma: no cover - redis availability issue
+            logger.warning("Redis get failed: %s", exc)
+        else:
+            if cached is not None:
+                logger.debug("Cache hit for cluster %s", payload.cluster.cluster_id)
+                return AnnotationResponse(result=cached)
     try:
         result = annotator.annotate_cluster(
             payload.cluster.model_dump(),
@@ -105,17 +110,23 @@ async def annotate_cluster(
         "markers": payload.cluster.markers,
     }
 
-    crosschecked = crosscheck_batch(
-        [annotation_record],
-        marker_db,
-        species=(payload.dataset_context.species if payload.dataset_context else None),
-        tissue=(payload.dataset_context.tissue if payload.dataset_context else None),
-    )
-    report_model = build_structured_report([annotation_record], crosschecked)
-    report = report_model.model_dump()
-    if cache is not None and not payload.return_validated:
-        await cache.set(cache_payload, report)
-    return AnnotationResponse(result=report if payload.return_validated else report)
+    if payload.return_validated:
+        crosschecked = crosscheck_batch(
+            [annotation_record],
+            marker_db,
+            species=(payload.dataset_context.species if payload.dataset_context else None),
+            tissue=(payload.dataset_context.tissue if payload.dataset_context else None),
+        )
+        report_model = build_structured_report([annotation_record], crosschecked)
+        report = report_model.model_dump()
+        return AnnotationResponse(result=report)
+
+    if cache is not None:
+        try:
+            await cache.set(cache_payload, annotation_record)
+        except Exception as exc:  # pragma: no cover - redis availability issue
+            logger.warning("Redis set failed: %s", exc)
+    return AnnotationResponse(result=annotation_record)
 
 
 @app.post("/annotate_batch", response_model=BatchAnnotationResponse)

@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 import logging
 import time
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
+from jsonschema import Draft202012Validator
 from openai import OpenAI
 
 from backend.llm import prompts
@@ -17,6 +19,10 @@ logger = logging.getLogger("cellannot.llm")
 
 class AnnotationError(RuntimeError):
     """Raised when the LLM returns an invalid response."""
+
+
+class SchemaValidationError(AnnotationError):
+    """Raised when LLM output fails JSON Schema validation."""
 
 
 DEFAULT_MARKER_KB: Dict[str, Dict[str, Any]] = {
@@ -179,12 +185,47 @@ class Annotator:
             else 60.0 / self.settings.openai_requests_per_minute
         )
         self._last_call_ts: Optional[float] = None
+        self._annotation_schema: Dict[str, Any]
+        self._annotation_validator: Draft202012Validator
+        self._batch_schema: Dict[str, Any]
+        self._batch_validator: Draft202012Validator
+        self._load_schemas()
 
     @property
     def llm_mode(self) -> str:
         return self._mode
 
     # Public API -----------------------------------------------------------------
+
+    def _load_schemas(self) -> None:
+        schema_path = Path(__file__).resolve().parents[2] / "schemas" / "annotation_result.schema.json"
+        try:
+            with schema_path.open("r", encoding="utf-8") as fh:
+                dataset_schema = json.load(fh)
+        except FileNotFoundError:
+            logger.error("Annotation schema not found at %s; using permissive validator.", schema_path)
+            dataset_schema = {}
+
+        annotation_schema = (
+            dataset_schema.get("properties", {})
+            .get("clusters", {})
+            .get("items", {})
+            .get("properties", {})
+            .get("annotation")
+        )
+        if not annotation_schema:
+            logger.warning(
+                "Annotation schema missing from %s; validation will allow any object.", schema_path
+            )
+            annotation_schema = {"type": "object"}
+
+        self._annotation_schema = annotation_schema
+        self._annotation_validator = Draft202012Validator(self._annotation_schema)
+        self._batch_schema = {
+            "type": "object",
+            "additionalProperties": self._annotation_schema,
+        }
+        self._batch_validator = Draft202012Validator(self._batch_schema)
 
     def annotate_cluster(
         self,
@@ -196,6 +237,7 @@ class Annotator:
         if self._mode == "mock" or self._client is None:
             return self._mock_backend.annotate_cluster(cluster_payload, dataset_context)
 
+        self._log_request("annotate_cluster", cluster_payload, dataset_context)
         messages = [
             {"role": "system", "content": prompts.build_system_prompt()},
             {
@@ -203,8 +245,21 @@ class Annotator:
                 "content": prompts.build_single_cluster_prompt(cluster_payload, dataset_context),
             },
         ]
-        raw = self._call_llm(messages)
-        return self._parse_json(raw, context="annotate_cluster")
+        try:
+            raw = self._call_llm(
+                messages,
+                schema=self._annotation_schema,
+                schema_name="cellannot_annotation",
+            )
+            result = self._parse_json(raw, context="annotate_cluster")
+            self._validate_annotation_payload(result)
+            self._log_response("annotate_cluster", result)
+            return result
+        except (AnnotationError, SchemaValidationError) as exc:
+            logger.warning("annotate_cluster falling back to heuristics: %s", exc)
+            fallback = self._mock_backend.annotate_cluster(cluster_payload, dataset_context)
+            self._append_warning(fallback, f"Mock annotator used due to LLM error: {exc}")
+            return fallback
 
     def annotate_batch(
         self,
@@ -216,15 +271,31 @@ class Annotator:
         if self._mode == "mock" or self._client is None:
             return self._mock_backend.annotate_batch(clusters, dataset_context)
 
+        clusters_list = list(clusters)
+        self._log_request("annotate_batch", clusters_list, dataset_context)
         messages = [
             {"role": "system", "content": prompts.build_system_prompt()},
             {
                 "role": "user",
-                "content": prompts.build_batch_prompt(clusters, dataset_context),
+                "content": prompts.build_batch_prompt(clusters_list, dataset_context),
             },
         ]
-        raw = self._call_llm(messages)
-        return self._parse_json(raw, context="annotate_batch")
+        try:
+            raw = self._call_llm(
+                messages,
+                schema=self._batch_schema,
+                schema_name="cellannot_batch",
+            )
+            result = self._parse_json(raw, context="annotate_batch")
+            self._validate_batch_payload(result)
+            self._log_response("annotate_batch", result)
+            return result
+        except (AnnotationError, SchemaValidationError) as exc:
+            logger.warning("annotate_batch falling back to heuristics: %s", exc)
+            fallback = self._mock_backend.annotate_batch(clusters_list, dataset_context)
+            for cluster_result in fallback.values():
+                self._append_warning(cluster_result, f"Mock annotator used due to LLM error: {exc}")
+            return fallback
 
     # Internal helpers -----------------------------------------------------------
 
@@ -236,6 +307,61 @@ class Annotator:
         if not isinstance(data, dict):
             raise AnnotationError(f"{context} expected JSON object, received {type(data)}")
         return data
+
+    def _validate_annotation_payload(self, payload: Dict[str, Any]) -> None:
+        if not isinstance(payload, dict):
+            raise SchemaValidationError("Annotation payload must be an object.")
+        errors = sorted(self._annotation_validator.iter_errors(payload), key=lambda err: err.path)
+        if errors:
+            raise SchemaValidationError(errors[0].message)
+
+    def _validate_batch_payload(self, payload: Dict[str, Any]) -> None:
+        if not isinstance(payload, dict):
+            raise SchemaValidationError("Batch payload must be an object mapping cluster IDs.")
+        errors = sorted(self._batch_validator.iter_errors(payload), key=lambda err: err.path)
+        if errors:
+            raise SchemaValidationError(errors[0].message)
+
+    @staticmethod
+    def _append_warning(annotation: Dict[str, Any], message: str) -> None:
+        warnings = annotation.get("warnings")
+        if isinstance(warnings, list):
+            warnings.append(message)
+        else:
+            annotation["warnings"] = [message]
+
+    def _log_request(
+        self,
+        operation: str,
+        payload: Iterable[Dict[str, Any]] | Dict[str, Any],
+        dataset_context: Optional[Dict[str, Any]],
+    ) -> None:
+        if isinstance(payload, dict):
+            marker_counts = len(payload.get("markers") or [])
+            cluster_count = 1
+        else:
+            payload_list = list(payload)
+            marker_counts = sum(len(item.get("markers") or []) for item in payload_list)
+            cluster_count = len(payload_list)
+        context_keys = sorted((dataset_context or {}).keys())
+        logger.info(
+            "llm.request",
+            extra={
+                "operation": operation,
+                "cluster_count": cluster_count,
+                "marker_count": marker_counts,
+                "context_keys": context_keys,
+            },
+        )
+
+    def _log_response(self, operation: str, payload: Dict[str, Any]) -> None:
+        logger.info(
+            "llm.response",
+            extra={
+                "operation": operation,
+                "keys": sorted(payload.keys()),
+            },
+        )
 
     def _enforce_rate_limit(self) -> None:
         if self._min_interval <= 0:
@@ -250,7 +376,7 @@ class Annotator:
             self._sleep(wait_for)
         self._last_call_ts = time.monotonic()
 
-    def _call_llm(self, messages: List[Dict[str, str]]) -> str:
+    def _call_llm(self, messages: List[Dict[str, str]], *, schema: Dict[str, Any], schema_name: str) -> str:
         if self._client is None:
             raise AnnotationError("LLM client unavailable; mock mode should be used instead.")
 
@@ -263,6 +389,13 @@ class Annotator:
                     messages=messages,
                     temperature=self.settings.openai_temperature,
                     max_tokens=self.settings.openai_max_tokens,
+                    response_format={
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": schema_name,
+                            "schema": schema,
+                        },
+                    },
                 )
                 content = response.choices[0].message.content  # type: ignore[attr-defined]
                 if not content:
@@ -284,4 +417,4 @@ class Annotator:
         time.sleep(seconds)
 
 
-__all__ = ["Annotator", "AnnotationError", "MockAnnotator"]
+__all__ = ["Annotator", "AnnotationError", "SchemaValidationError", "MockAnnotator"]

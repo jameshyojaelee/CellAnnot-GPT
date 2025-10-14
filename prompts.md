@@ -1,39 +1,4 @@
-# GPT-5-Codex Prompt Playbook · CellAnnot-GPT
 
-Each section is a ready-to-run instruction block for Codex. Run them one at a time, reviewing diffs and tests before proceeding.
-
-
-
-## 2. LLM Orchestration & Schema Hardening
-
-**Prompt**
-
-You are refactoring the CellAnnot-GPT annotator.
-Objectives:
-1. Remove the duplicate system message in `backend/llm/annotator.py` and introduce structured logging around request/response payloads (without leaking secrets).
-2. Switch OpenAI calls to use `response_format={"type":"json_object"}` (or function calling) tied to `schemas/annotation_result.schema.json`.
-3. Implement a JSON Schema validator so malformed outputs trigger the `MockAnnotator` fallback with an appended warning.
-4. Extend prompts in `backend/llm/prompts.py` so the model must cite at least one knowledge-base evidence string.
-
-Remember to update tests in `tests/test_annotator.py` and add new cases for schema validation. Run `poetry run pytest tests/test_annotator.py` after coding.
-
----
-
-## 3. API & Cache Reliability
-
-**Prompt**
-
-Focus on the FastAPI layer.
-Tasks:
-1. In `backend/api/main.py`, honor `return_validated=False` by returning the raw annotation payload (and reserve crosscheck only for the validated path).
-2. Ensure cache keys encode whether validation was requested; avoid mixing validated and non-validated reports.
-3. Add structured error handling so Redis outages degrade to a warning log and continue without caching.
-4. Extend `backend/cache/async_cache.py` to accept async callables directly.
-5. Update `tests/test_api.py` and `tests/test_cache.py` to cover the new semantics.
-
-Run `poetry run pytest tests/test_api.py tests/test_cache.py` before finishing.
-
----
 
 ## 4. Benchmark Guardrails
 

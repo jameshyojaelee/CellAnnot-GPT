@@ -40,8 +40,9 @@ def build_single_cluster_prompt(
 
     instructions = (
         "Return JSON with keys: primary_label, ontology_id, confidence, rationale, alternatives, "
-        "caveats. Provide alternatives as a list with 'label' and 'reason'. "
-        "Use 'Unknown or Novel' if evidence is conflicting."
+        "caveats, evidence_sources. Provide alternatives as a list with 'label' and 'reason'. "
+        "Use 'Unknown or Novel' if evidence is conflicting. evidence_sources must list at least one "
+        "citation referencing PanglaoDB, CellMarker, or curated literature."
     )
 
     return (
@@ -77,8 +78,9 @@ def build_batch_prompt(
     cluster_block = "\\n".join(cluster_sections)
     instructions = (
         "For each cluster, return an object with primary_label, ontology_id, confidence, "
-        "rationale, alternatives, caveats. Provide an overall dataset_summary with observed "
-        "composition, uncertainties, and follow-up recommendations."
+        "rationale, alternatives, caveats, evidence_sources (with at least one knowledge-base "
+        "citation such as PanglaoDB, CellMarker, or curated literature). Provide an overall "
+        "dataset_summary with observed composition, uncertainties, and follow-up recommendations."
     )
 
     return f"{context_block}\nClusters:\n{cluster_block}\n{instructions}"

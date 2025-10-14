@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 
 import pytest
 
-from backend.llm.annotator import Annotator, AnnotationError
+from backend.llm.annotator import Annotator
 from config.settings import Settings
 
 
@@ -41,7 +41,7 @@ def build_choice(content: str) -> Any:
 
 
 def test_annotate_cluster_parses_json(monkeypatch: pytest.MonkeyPatch) -> None:
-    expected = {"primary_label": "B cell"}
+    expected = {"primary_label": "B cell", "confidence": "High", "rationale": "Markers support B cell"}
     fake_responses = [build_choice(json.dumps(expected))]
     completions = FakeCompletions(fake_responses)
     client = FakeClient(completions)
@@ -55,16 +55,24 @@ def test_annotate_cluster_parses_json(monkeypatch: pytest.MonkeyPatch) -> None:
     recorder = SleepRecorder()
     monkeypatch.setattr(annotator, "_sleep", recorder)  # type: ignore[arg-type]
 
-    result = annotator.annotate_cluster({"cluster_id": "0", "markers": ["MS4A1"]})
+    payload = {"cluster_id": "0", "markers": ["MS4A1"]}
+    result = annotator.annotate_cluster(payload)
 
     assert result == expected
     assert len(completions.calls) == 1
     assert recorder.calls == []
+    assert completions.calls[0]["response_format"]["type"] == "json_schema"
 
 
 def test_annotate_batch_retries_on_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     first_error = RuntimeError("rate limit")
-    expected = {"Cluster 0": {"primary_label": "T cell"}}
+    expected = {
+        "0": {
+            "primary_label": "T cell",
+            "confidence": "Medium",
+            "rationale": "Markers align with canonical T cell profile",
+        }
+    }
     fake_responses = [first_error, build_choice(json.dumps(expected))]
     completions = FakeCompletions(fake_responses)
     client = FakeClient(completions)
@@ -84,17 +92,21 @@ def test_annotate_batch_retries_on_failure(monkeypatch: pytest.MonkeyPatch) -> N
     assert result == expected
     assert len(completions.calls) == 2  # retried once
     assert pytest.approx(recorder.calls[0], rel=1e-6) == 0.1
+    assert completions.calls[1]["response_format"]["type"] == "json_schema"
 
 
-def test_invalid_json_raises_annotation_error() -> None:
+def test_invalid_json_triggers_mock_fallback() -> None:
     completions = FakeCompletions([build_choice("not json")])
     client = FakeClient(completions)
     settings = Settings(openai_api_key="test-key", openai_requests_per_minute=0)
     annotator = Annotator(settings=settings, client=client)  # type: ignore[arg-type]
     assert annotator.llm_mode == "live"
 
-    with pytest.raises(AnnotationError):
-        annotator.annotate_cluster({"cluster_id": "1", "markers": []})
+    result = annotator.annotate_cluster({"cluster_id": "1", "markers": []})
+
+    assert result["primary_label"] in {"Unknown or Novel", "B cell", "T cell"}
+    assert "warnings" in result
+    assert any("Mock annotator used" in warning for warning in result["warnings"])
 
 
 def test_mock_mode_when_api_key_missing():
@@ -105,3 +117,31 @@ def test_mock_mode_when_api_key_missing():
     result = annotator.annotate_cluster({"cluster_id": "0", "markers": ["MS4A1", "CD79A"]})
     assert result["primary_label"] == "B cell"
     assert "rationale" in result
+
+
+def test_schema_validation_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    bad_payload = {"confidence": "High", "rationale": "Missing primary label"}
+    completions = FakeCompletions([build_choice(json.dumps(bad_payload))])
+    client = FakeClient(completions)
+    settings = Settings(openai_api_key="test-key", openai_requests_per_minute=0)
+    annotator = Annotator(settings=settings, client=client)  # type: ignore[arg-type]
+
+    result = annotator.annotate_cluster({"cluster_id": "7", "markers": ["MS4A1"]})
+
+    assert result["primary_label"] == "B cell"
+    assert "warnings" in result
+    assert any("LLM error" in warning for warning in result["warnings"])
+
+
+def test_batch_schema_validation_fallback() -> None:
+    bad_batch = {"0": {"rationale": "Missing confidence and primary_label"}}
+    completions = FakeCompletions([build_choice(json.dumps(bad_batch))])
+    client = FakeClient(completions)
+    settings = Settings(openai_api_key="test-key", openai_requests_per_minute=0)
+    annotator = Annotator(settings=settings, client=client)  # type: ignore[arg-type]
+
+    result = annotator.annotate_batch([{"cluster_id": "0", "markers": ["CD3E"]}])
+
+    assert isinstance(result["0"]["primary_label"], str)
+    assert "warnings" in result["0"]
+    assert any("LLM error" in warning for warning in result["0"]["warnings"])
