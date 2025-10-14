@@ -52,7 +52,7 @@ curl -s -X POST http://127.0.0.1:8000/annotate_batch \
 - Marker knowledge ingestion from PanglaoDB, CellMarker, and curated literature.
 - Prompt-engineered LLM annotation engine with batch support and uncertainty handling.
 - Validation layer cross-checking LLM outputs against marker databases.
-- FastAPI REST endpoints plus Streamlit UI for interactive exploration.
+- FastAPI REST endpoints plus a Streamlit UI for interactive exploration, run-to-run comparison, and knowledge-linked warnings.
 - Benchmark toolkit for evaluating accuracy and tracking improvements.
 - Deployment-ready configuration (Docker, CI/CD) and demo assets for presentations.
 

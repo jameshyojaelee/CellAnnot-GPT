@@ -80,3 +80,47 @@ def test_api_helpers(monkeypatch):
     assert calls["get"][0].endswith("/health")
     assert calls["post"][0][0].endswith("/annotate_cluster")
     assert calls["post"][1][0].endswith("/annotate_batch")
+
+
+def test_knowledge_base_url_heuristics():
+    url = utils.knowledge_base_url("MS4A1", source="PanglaoDB")
+    assert "MS4A1" in url
+    assert "panglao" in url.lower()
+
+    fallback = utils.knowledge_base_url("LYZ")
+    assert "LYZ" in fallback
+
+
+def test_format_marker_links_deduplicates():
+    links = utils.format_marker_links(["MS4A1", "ms4a1", "CD3E"])
+    segments = links.split(", ")
+    assert segments[0].startswith("[MS4A1]")
+    assert len([seg for seg in segments if seg.startswith("[MS4A1]")]) == 1
+    assert "CD3E" in links
+
+
+def test_collect_marker_highlights_extracts_sets():
+    cluster = {
+        "validation": {
+            "contradictory_markers": {"MS4A1": ["Monocyte"]},
+            "missing_markers": ["CD3D"],
+            "supporting_markers": ["CD79A"],
+        }
+    }
+    highlights = utils.collect_marker_highlights(cluster)
+    assert highlights["warning_markers"] == ["CD3D", "MS4A1"]
+    assert highlights["supporting_markers"] == ["CD79A"]
+
+
+def test_build_call_to_action_generates_follow_up():
+    cluster = {
+        "confidence": "Low",
+        "warnings": ["Conflicting markers detected"],
+        "validation": {
+            "contradictory_markers": {"MS4A1": ["Monocyte"]},
+            "missing_markers": ["CD3E"],
+        },
+    }
+    cta = utils.build_call_to_action(cluster)
+    assert "markers" in cta["next_experiments"][0].lower()
+    assert set(cta["markers_to_validate"]) == {"CD3E", "MS4A1"}

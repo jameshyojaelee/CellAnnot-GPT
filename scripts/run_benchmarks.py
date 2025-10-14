@@ -176,7 +176,7 @@ def run() -> None:
         if prev_accuracy is not None and prev_macro is not None:
             history.append(
                 {
-                    "date": previous.get("run_date", "previous"),
+                    "date": previous.get("run_date", "previous") if previous else "previous",
                     "accuracy": prev_accuracy,
                     "macro_f1": prev_macro,
                 }
@@ -207,10 +207,15 @@ def run() -> None:
         if accuracy_delta is not None and accuracy_delta <= -BENCHMARK_REGRESSION_THRESHOLD:
             regressions.append(dataset_name)
 
-        print(
-            f"[benchmarks] {dataset_name}: accuracy {result.accuracy:.2%}"
-            f"{' (Δ {:+.2%})'.format(accuracy_delta) if accuracy_delta is not None else ''}"
-        )
+        accuracy_msg = f"{result.accuracy:.2%}"
+        if accuracy_delta is not None:
+            accuracy_msg += f" (Δ {accuracy_delta:+.2%})"
+
+        macro_msg = f"{result.macro_f1:.2%}"
+        if macro_f1_delta is not None:
+            macro_msg += f" (Δ {macro_f1_delta:+.2%})"
+
+        print(f"[benchmarks] {dataset_name}: accuracy {accuracy_msg}, macro_f1 {macro_msg}")
 
     diff_summary_path = base_output / "diff_summary.json"
     diff_summary_path.write_text(json.dumps(diff_summary, indent=2), encoding="utf-8")

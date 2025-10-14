@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import functools
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
 
 import requests
 
@@ -85,3 +85,98 @@ def format_summary(report: Dict[str, Any]) -> str:
         f"Flagged: {flagged} ({pct(flagged_rate)}) | "
         f"Unknown: {unknown} ({pct(unknown_rate)})"
     )
+
+
+def knowledge_base_url(marker: str, source: Optional[str] = None) -> str:
+    """Heuristic mapping from marker to a public knowledge base URL."""
+
+    symbol = marker.strip().upper()
+    if source and "cellmarker" in source.lower():
+        return f"https://biocc.hrbmu.edu.cn/CellMarker/search.jsp?g={symbol}"
+    if source and "panglao" in source.lower():
+        return f"https://panglaodb.se/markers/{symbol}"
+    return f"https://www.genecards.org/cgi-bin/carddisp.pl?gene={symbol}"
+
+
+def format_marker_links(markers: Sequence[str], source: Optional[str] = None) -> str:
+    """Return Markdown string with marker hyperlinks."""
+
+    unique: List[str] = []
+    seen: Set[str] = set()
+    for marker in markers:
+        marker = marker.strip()
+        if not marker:
+            continue
+        if marker.upper() in seen:
+            continue
+        seen.add(marker.upper())
+        unique.append(marker)
+    if not unique:
+        return "—"
+    links = [f"[{m}]({knowledge_base_url(m, source)})" for m in unique]
+    return ", ".join(links)
+
+
+def collect_marker_highlights(cluster: Dict[str, Any]) -> Dict[str, List[str]]:
+    """Extract marker lists used for warnings and support visuals."""
+
+    validation = cluster.get("validation") or {}
+    contradictory = validation.get("contradictory_markers") or {}
+    missing = validation.get("missing_markers") or []
+    supporting = validation.get("supporting_markers") or []
+
+    warning_markers: List[str] = sorted({*contradictory.keys(), *missing})
+    supporting_markers: List[str] = sorted(set(supporting))
+    return {
+        "warning_markers": warning_markers,
+        "supporting_markers": supporting_markers,
+        "contradictory_map": contradictory,
+        "missing_markers": missing,
+    }
+
+
+def build_call_to_action(cluster: Dict[str, Any]) -> Dict[str, List[str]]:
+    """Generate follow-up suggestions based on validation output."""
+
+    validation = cluster.get("validation") or {}
+    warnings = cluster.get("warnings") or []
+    contradictory = validation.get("contradictory_markers") or {}
+    missing = validation.get("missing_markers") or []
+    confidence = (cluster.get("confidence") or "").lower()
+
+    experiments: List[str] = []
+    markers_to_validate: List[str] = []
+
+    if contradictory:
+        markers_to_validate.extend(contradictory.keys())
+        experiments.append("Design flow cytometry or staining panel to resolve conflicting markers.")
+    if missing:
+        markers_to_validate.extend(missing)
+        experiments.append("Collect additional markers or deeper sequencing for low-evidence genes.")
+    if warnings and "novel" in " ".join(warnings).lower():
+        experiments.append("Review novel cluster with domain experts before assigning label.")
+    if confidence in {"low", "unknown"} and not experiments:
+        experiments.append("Plan orthogonal assay (e.g., CITE-seq) to firm up low-confidence calls.")
+
+    if not experiments:
+        experiments.append("Document validated markers and archive the run for traceability.")
+
+    dedup_markers = sorted({m.upper(): m for m in markers_to_validate}.values())
+    return {
+        "next_experiments": sorted(set(experiments)),
+        "markers_to_validate": dedup_markers,
+    }
+
+
+__all__ = [
+    "annotate_batch",
+    "annotate_cluster",
+    "annotate_cluster_api",
+    "build_call_to_action",
+    "collect_marker_highlights",
+    "format_marker_links",
+    "format_summary",
+    "get_health",
+    "knowledge_base_url",
+    "status_badge",
+]

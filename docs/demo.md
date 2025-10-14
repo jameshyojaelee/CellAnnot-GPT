@@ -21,6 +21,15 @@
 **2:45 – Close (15 sec)**  
 "In three minutes we produced evidence-backed annotations, surfacing both confident calls and uncertainties. This workflow is repeatable across datasets, saving days per project."
 
+## 1.1 New UI Highlights
+- **Comparison Mode:** After each batch run, switch to *Compare Batches* to overlay contradictions and status changes between runs. Great for prompt/DB iterations.
+- **Knowledge-linked Warnings:** Flagged markers now link directly to PanglaoDB/CellMarker lookups so reviewers can open the evidence with one click.
+- **Call-to-action Panels:** The app suggests follow-up experiments and markers to validate, turning validation notes into a mini playbook.
+
+### Watch the 90-second tour
+[Loom walkthrough of the upgraded dashboard](https://www.loom.com/share/your-cellannot-demo)  
+(Replace with the latest recording when available.)
+
 ## 2. Slide Outline
 
 ### Slide 1 – Problem

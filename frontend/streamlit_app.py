@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from io import BytesIO
 from typing import Any, Dict, List
 
@@ -12,7 +13,16 @@ try:
 except ImportError:  # pragma: no cover - optional dependency
     FPDF = None  # type: ignore
 
-from frontend.utils import annotate_batch, annotate_cluster_api, format_summary, get_health, status_badge
+from frontend.utils import (
+    annotate_batch,
+    annotate_cluster_api,
+    build_call_to_action,
+    collect_marker_highlights,
+    format_marker_links,
+    format_summary,
+    get_health,
+    status_badge,
+)
 
 st.set_page_config(page_title="CellAnnot-GPT", layout="wide")
 
@@ -21,6 +31,7 @@ def _ensure_session_state() -> None:
     st.session_state.setdefault("uploaded_clusters", [])
     st.session_state.setdefault("batch_result", None)
     st.session_state.setdefault("single_cluster_result", None)
+    st.session_state.setdefault("batch_history", [])
 
 
 def _show_toast(message: str, icon: str = "✅") -> None:
@@ -176,6 +187,16 @@ def page_batch_annotate() -> None:
                 st.error(f"Batch annotation failed: {exc}")
                 return
         st.session_state["batch_result"] = result
+        history = st.session_state.get("batch_history", [])
+        history.append(
+            {
+                "run_id": datetime.utcnow().strftime("%Y%m%d-%H%M%S"),
+                "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                "payload": payload,
+                "report": result["result"],
+            }
+        )
+        st.session_state["batch_history"] = history[-6:]
         st.success("Batch annotation complete. Review results on the next page.")
         _show_toast("Batch annotation finished", icon="✅")
 
@@ -299,16 +320,49 @@ def page_review_results() -> None:
         validation = cluster.get("validation")
         status = cluster.get("status", "supported").title()
         confidence = cluster.get("confidence")
+        highlights = collect_marker_highlights(cluster)
+        call_to_action = build_call_to_action(cluster)
 
         with st.expander(f"Cluster {cluster_id} → {primary_label} ({status})", expanded=status != "Supported"):
             if markers:
-                st.caption(f"Markers: {', '.join(markers)}")
+                st.markdown(
+                    "**Markers:** " + format_marker_links(markers),
+                    unsafe_allow_html=True,
+                )
             if confidence:
                 st.markdown(f"**Confidence:** {confidence}")
             if warnings:
                 st.warning("\n".join(warnings))
             else:
                 st.success("Supported by marker database")
+
+            if highlights["warning_markers"]:
+                st.markdown(
+                    f"**Markers triggering warnings:** {format_marker_links(highlights['warning_markers'])}",
+                    unsafe_allow_html=True,
+                )
+            if highlights["supporting_markers"]:
+                st.markdown(
+                    f"**Knowledge base support:** {format_marker_links(highlights['supporting_markers'])}",
+                    unsafe_allow_html=True,
+                )
+
+            if call_to_action["next_experiments"] or call_to_action["markers_to_validate"]:
+                st.subheader("Next Steps")
+                cta_col1, cta_col2 = st.columns(2)
+                with cta_col1:
+                    st.markdown("**Next experiments**")
+                    for item in call_to_action["next_experiments"]:
+                        st.write(f"- {item}")
+                with cta_col2:
+                    st.markdown("**Markers to validate**")
+                    if call_to_action["markers_to_validate"]:
+                        st.markdown(
+                            format_marker_links(call_to_action["markers_to_validate"]),
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.write("- None")
 
             cols = st.columns(2)
             with cols[0]:
@@ -317,6 +371,114 @@ def page_review_results() -> None:
             with cols[1]:
                 st.write("Validation")
                 st.json(validation or {})
+
+
+def _prepare_run_dataframe(report: Dict[str, Any], run_label: str) -> pd.DataFrame:
+    rows: List[Dict[str, Any]] = []
+    for cluster in report.get("clusters", []):
+        validation = cluster.get("validation") or {}
+        contradictory = validation.get("contradictory_markers") or {}
+        rows.append(
+            {
+                "run": run_label,
+                "cluster_id": str(cluster.get("cluster_id")),
+                "primary_label": cluster.get("annotation", {}).get("primary_label"),
+                "status": cluster.get("status"),
+                "contradictions": len(contradictory),
+                "warnings": len(cluster.get("warnings") or []),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def page_compare_runs() -> None:
+    st.header("Compare Batch Runs")
+    history = st.session_state.get("batch_history", [])
+    if len(history) < 2:
+        st.info("Run at least two batch annotations to unlock comparison mode.")
+        return
+
+    options = {run["run_id"]: run for run in history}
+    latest_id = history[-1]["run_id"]
+    previous_id = history[-2]["run_id"]
+
+    run_a_id = st.selectbox("Primary run", list(options.keys()), index=list(options.keys()).index(latest_id))
+    run_b_id = st.selectbox("Baseline run", [rid for rid in options.keys() if rid != run_a_id], index=0)
+
+    run_a = options[run_a_id]
+    run_b = options[run_b_id]
+
+    st.caption(f"Comparing **{run_a_id}** ({run_a['timestamp']}) vs **{run_b_id}** ({run_b['timestamp']})")
+
+    df_a = _prepare_run_dataframe(run_a["report"], run_a_id)
+    df_b = _prepare_run_dataframe(run_b["report"], run_b_id)
+    combined = pd.concat([df_a, df_b], ignore_index=True)
+
+    contradiction_chart = (
+        alt.Chart(combined)
+        .mark_bar()
+        .encode(
+            x=alt.X("cluster_id:N", title="Cluster ID", sort=None),
+            y=alt.Y("contradictions:Q", title="# Contradictory markers"),
+            color=alt.Color("run:N", title="Run"),
+            tooltip=["run", "cluster_id", "status", "contradictions", "warnings"],
+        )
+        .properties(height=320)
+    )
+    st.altair_chart(contradiction_chart, use_container_width=True)
+
+    pivot = pd.merge(
+        df_a,
+        df_b,
+        on="cluster_id",
+        how="outer",
+        suffixes=("_new", "_baseline"),
+    )
+    pivot = pivot.fillna({"status_new": "n/a", "status_baseline": "n/a"})
+    for col in ["contradictions_new", "contradictions_baseline", "warnings_new", "warnings_baseline"]:
+        if col in pivot.columns:
+            pivot[col] = pivot[col].fillna(0).astype(int)
+    pivot["status_changed"] = pivot["status_new"] != pivot["status_baseline"]
+
+    columns_in_order = [
+        "cluster_id",
+        "status_baseline",
+        "status_new",
+        "primary_label_baseline",
+        "primary_label_new",
+        "warnings_baseline",
+        "warnings_new",
+        "contradictions_baseline",
+        "contradictions_new",
+    ]
+    available_columns = [col for col in columns_in_order if col in pivot.columns]
+    display_df = pivot[available_columns].rename(
+        columns={
+            "status_baseline": f"Status {run_b_id}",
+            "status_new": f"Status {run_a_id}",
+            "primary_label_baseline": f"Label {run_b_id}",
+            "primary_label_new": f"Label {run_a_id}",
+            "warnings_baseline": f"Warnings {run_b_id}",
+            "warnings_new": f"Warnings {run_a_id}",
+            "contradictions_baseline": f"Contradictions {run_b_id}",
+            "contradictions_new": f"Contradictions {run_a_id}",
+        }
+    )
+
+    st.subheader("Status Changes")
+    st.dataframe(display_df, use_container_width=True)
+
+    highlight_clusters = pivot[
+        pivot["status_changed"] | (pivot["contradictions_new"] != pivot["contradictions_baseline"])
+    ]
+    if not highlight_clusters.empty:
+        st.subheader("Clusters to Review")
+        for _, row in highlight_clusters.iterrows():
+            st.markdown(
+                f"- **Cluster {row['cluster_id']}**: contradictions changed from "
+                f"{int(row['contradictions_baseline'])} → {int(row['contradictions_new'])}, "
+                f"status {row[f'Status {run_b_id}']} → {row[f'Status {run_a_id}']}"
+            )
 
 
 def page_single_cluster() -> None:
@@ -397,7 +559,7 @@ def page_single_cluster() -> None:
 def main() -> None:
     _ensure_session_state()
 
-    pages = ["Upload Markers", "Batch Annotate", "Review Results", "Single Cluster"]
+    pages = ["Upload Markers", "Batch Annotate", "Review Results", "Compare Batches", "Single Cluster"]
     st.sidebar.title("CellAnnot-GPT")
     st.sidebar.markdown(
         "[Getting Started](docs/getting_started.md) · [API Reference](docs/api_reference.md) · [Operations](docs/operations.md)",
@@ -441,6 +603,8 @@ def main() -> None:
         page_batch_annotate()
     elif page == "Review Results":
         page_review_results()
+    elif page == "Compare Batches":
+        page_compare_runs()
     else:
         page_single_cluster()
 
