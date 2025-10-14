@@ -89,6 +89,7 @@ jobs:
       - name: Run benchmarks (mock)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ALLOW_BENCHMARK_REGRESSIONS: ${{ env.ALLOW_BENCHMARK_REGRESSIONS }}
         run: |
           poetry run python scripts/run_benchmarks.py --mock --output-dir docs/reports
 
@@ -97,3 +98,12 @@ jobs:
         with:
           name: benchmark-reports
           path: docs/reports
+
+      - name: Upload benchmark diff summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-diff-summary
+          path: |
+            docs/reports/latest/diff_summary.json
+            docs/reports/latest/*.csv

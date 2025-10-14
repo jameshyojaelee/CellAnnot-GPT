@@ -7,6 +7,7 @@ from pathlib import Path
 import json
 
 from evaluation.benchmark_runner import BenchmarkResult, load_and_run, run_benchmark
+from evaluation.report_templates import render_markdown_report, render_sparkline_csv
 
 
 class DummyAnnotator:
@@ -46,3 +47,27 @@ def test_load_and_run(synthetic_dataset):
     annotator = DummyAnnotator()
     result = load_and_run(dataset_path, annotator)
     assert result.macro_f1 >= 0.0
+
+
+def test_render_markdown_report_highlights_regression():
+    result = {
+        "accuracy": 0.70,
+        "macro_f1": 0.65,
+        "per_class": {},
+        "predictions": [],
+    }
+    markdown = render_markdown_report(result, deltas={"accuracy": -0.06, "macro_f1": 0.01})
+    assert "**-6.00%**" in markdown
+
+
+def test_render_sparkline_csv_formats_history():
+    csv_text = render_sparkline_csv(
+        "synthetic",
+        [
+            {"date": "20240101", "accuracy": 0.8, "macro_f1": 0.75},
+            {"date": "20240201", "accuracy": 0.85, "macro_f1": 0.78},
+        ],
+    )
+    lines = csv_text.strip().splitlines()
+    assert lines[0] == "dataset,date,accuracy,macro_f1"
+    assert lines[1].startswith("synthetic,20240101,0.8000")

@@ -1,14 +1,28 @@
 from __future__ import annotations
 
-from typing import Dict
+from typing import Dict, Iterable, List, Optional
 
 
-def render_markdown_report(result: Dict) -> str:
+def _format_delta(delta: Optional[float], regression_threshold: float) -> str:
+    if delta is None:
+        return ""
+    delta_percent = f"{delta:+.2%}"
+    if delta <= -regression_threshold:
+        return f" **{delta_percent}**"
+    return f" {delta_percent}"
+
+
+def render_markdown_report(
+    result: Dict,
+    *,
+    deltas: Optional[Dict[str, Optional[float]]] = None,
+    regression_threshold: float = 0.05,
+) -> str:
     lines = [
         "# CellAnnot-GPT Benchmark Report",
         "",
-        f"- Accuracy: {result['accuracy']:.2%}",
-        f"- Macro F1: {result['macro_f1']:.2%}",
+        f"- Accuracy: {result['accuracy']:.2%}{_format_delta((deltas or {}).get('accuracy'), regression_threshold)}",
+        f"- Macro F1: {result['macro_f1']:.2%}{_format_delta((deltas or {}).get('macro_f1'), regression_threshold)}",
         "",
         "## Per-class Metrics",
         "",
@@ -44,3 +58,12 @@ def render_text_confusion_matrix(result: Dict) -> str:
         row_counts = "\t".join(str(counts[truth][pred]) for pred in labels)
         matrix_lines.append(f"{truth}\t{row_counts}")
     return "\n".join(matrix_lines)
+
+
+def render_sparkline_csv(dataset: str, history: Iterable[Dict[str, float]]) -> str:
+    rows: List[str] = ["dataset,date,accuracy,macro_f1"]
+    for entry in history:
+        rows.append(
+            f"{dataset},{entry.get('date','')},{entry.get('accuracy', 0.0):.4f},{entry.get('macro_f1', 0.0):.4f}"
+        )
+    return "\n".join(rows)

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from typing import Any, Dict, Optional
+
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
@@ -78,6 +81,32 @@ def override_dependencies():
 client = TestClient(app)
 
 
+class FakeCache:
+    def __init__(self) -> None:
+        self.store: Dict[str, Any] = {}
+        self.get_calls = 0
+        self.set_calls = 0
+
+    def _key(self, payload: Dict[str, Any]) -> str:
+        return json.dumps(payload, sort_keys=True)
+
+    async def get(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        self.get_calls += 1
+        return self.store.get(self._key(payload))
+
+    async def set(self, payload: Dict[str, Any], value: Dict[str, Any]) -> None:
+        self.set_calls += 1
+        self.store[self._key(payload)] = value
+
+
+class FailingCache:
+    async def get(self, payload: Dict[str, Any]) -> None:
+        raise RuntimeError("redis unavailable")
+
+    async def set(self, payload: Dict[str, Any], value: Dict[str, Any]) -> None:
+        raise RuntimeError("redis unavailable")
+
+
 def test_health_endpoint():
     response = client.get("/health")
     assert response.status_code == 200
@@ -118,3 +147,77 @@ def test_annotate_batch_endpoint():
         "T cell"
     }
     assert data["result"]["metrics"]["confidence_counts"]
+
+
+def test_annotate_cluster_without_validation_returns_raw():
+    payload = {
+        "cluster": {"cluster_id": "0", "markers": ["MS4A1"]},
+        "dataset_context": {"species": "Homo sapiens"},
+        "return_validated": False,
+    }
+    response = client.post("/annotate_cluster", json=payload)
+    assert response.status_code == 200
+    result = response.json()["result"]
+    assert result["primary_label"] == "B cell"
+    assert result["cluster_id"] == "0"
+    assert "summary" not in result
+
+
+def test_annotate_cluster_uses_cache_for_non_validated():
+    fake_cache = FakeCache()
+    main.app.dependency_overrides[main.get_cache] = lambda: fake_cache
+    payload = {
+        "cluster": {"cluster_id": "0", "markers": ["MS4A1"]},
+        "dataset_context": {"species": "Homo sapiens"},
+        "return_validated": False,
+    }
+    first = client.post("/annotate_cluster", json=payload)
+    assert first.status_code == 200
+    assert fake_cache.set_calls == 1
+    assert fake_cache.get_calls == 1
+    cache_key = next(iter(fake_cache.store.keys()))
+    assert '"validated": false' in cache_key
+    stored_payload = next(iter(fake_cache.store.values()))
+    assert stored_payload["primary_label"] == "B cell"
+    assert stored_payload["cluster_id"] == "0"
+
+    second = client.post("/annotate_cluster", json=payload)
+    assert second.status_code == 200
+    assert fake_cache.get_calls == 2
+    assert fake_cache.set_calls == 1  # second call served from cache
+    assert second.json()["result"] == first.json()["result"]
+
+
+def test_annotate_cluster_validated_bypasses_unvalidated_cache():
+    fake_cache = FakeCache()
+    main.app.dependency_overrides[main.get_cache] = lambda: fake_cache
+
+    # prime cache with non-validated response
+    non_validated_payload = {
+        "cluster": {"cluster_id": "0", "markers": ["MS4A1"]},
+        "dataset_context": {"species": "Homo sapiens"},
+        "return_validated": False,
+    }
+    client.post("/annotate_cluster", json=non_validated_payload)
+    assert fake_cache.set_calls == 1
+
+    validated_payload = {
+        "cluster": {"cluster_id": "0", "markers": ["MS4A1"]},
+        "dataset_context": {"species": "Homo sapiens"},
+        "return_validated": True,
+    }
+    response = client.post("/annotate_cluster", json=validated_payload)
+    assert response.status_code == 200
+    # validated path should not reuse cached raw entry
+    assert response.json()["result"]["summary"]["total_clusters"] == 1
+
+
+def test_cache_failures_do_not_break_endpoint():
+    main.app.dependency_overrides[main.get_cache] = lambda: FailingCache()
+    payload = {
+        "cluster": {"cluster_id": "0", "markers": ["MS4A1"]},
+        "return_validated": False,
+    }
+    response = client.post("/annotate_cluster", json=payload)
+    assert response.status_code == 200
+    assert response.json()["result"]["primary_label"] == "B cell"

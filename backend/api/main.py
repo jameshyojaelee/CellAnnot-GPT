@@ -151,12 +151,17 @@ async def annotate_batch(
         "clusters": clusters_payload,
         "context": context_dict,
         "llm_mode": annotator.llm_mode,
+        "validated": True,
     }
     if cache is not None:
-        cached = await cache.get(cache_payload)
-        if cached is not None:
-            logger.debug("Cache hit for batch of %s clusters", len(payload.clusters))
-            return BatchAnnotationResponse(result=cached)
+        try:
+            cached = await cache.get(cache_payload)
+        except Exception as exc:  # pragma: no cover
+            logger.warning("Redis get failed: %s", exc)
+        else:
+            if cached is not None:
+                logger.debug("Cache hit for batch of %s clusters", len(payload.clusters))
+                return BatchAnnotationResponse(result=cached)
     try:
         result = annotator.annotate_batch(
             [cluster.model_dump() for cluster in payload.clusters],
@@ -186,7 +191,10 @@ async def annotate_batch(
     report_model = build_structured_report(annotations, crosschecked)
     report = report_model.model_dump()
     if cache is not None:
-        await cache.set(cache_payload, report)
+        try:
+            await cache.set(cache_payload, report)
+        except Exception as exc:  # pragma: no cover
+            logger.warning("Redis set failed: %s", exc)
     return BatchAnnotationResponse(result=report)
 
 

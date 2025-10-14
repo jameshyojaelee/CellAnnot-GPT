@@ -43,3 +43,5 @@ logs/
 
 # Docker
 *.pid
+
+prompts.md
