@@ -41,7 +41,11 @@ class GeneNormalizer:
         with self.synonyms_path.open("r", encoding="utf-8") as fh:
             data = json.load(fh)
         # Ensure consistent casing of species keys
-        return {str(species): {gene: aliases for gene, aliases in genes.items()} for species, genes in data.items()}
+        normalised: dict[str, dict[str, list[str]]] = {}
+        for species, genes in data.items():
+            species_key = str(species)
+            normalised[species_key] = {gene: aliases for gene, aliases in genes.items()}
+        return normalised
 
     def _load_orthologs(self) -> dict[str, dict[str, str]]:
         mapping: dict[str, dict[str, str]] = {}
@@ -128,7 +132,6 @@ class GeneNormalizer:
 
     # ---------------------------------------------------------- public methods
 
-    @lru_cache(maxsize=512)
     def normalise_marker(self, gene: str, species: str | None = None) -> set[str]:
         """Return the set of recognised aliases for a gene within a species."""
 
@@ -159,7 +162,11 @@ class GeneNormalizer:
                     ordered.append(alias)
         return ordered
 
-    def map_to_primary(self, markers: Iterable[str], species: str | None = None) -> tuple[list[str], list[dict[str, Any]]]:
+    def map_to_primary(
+        self,
+        markers: Iterable[str],
+        species: str | None = None,
+    ) -> tuple[list[str], list[dict[str, Any]]]:
         """Map markers to the primary species, returning mapped markers and mapping notes."""
 
         species_name = species or self.primary_species
@@ -182,7 +189,11 @@ class GeneNormalizer:
                 )
 
         if not mapped_markers:
-            mapped_markers = [marker.upper() for marker in markers if isinstance(marker, str) and marker.strip()]
+            mapped_markers = [
+                marker.upper()
+                for marker in markers
+                if isinstance(marker, str) and marker.strip()
+            ]
 
         return mapped_markers, notes
 

@@ -1,34 +1,16 @@
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 import anndata as ad
 import numpy as np
 import pandas as pd
 import scanpy as sc
 
-
-class _DummyCompletions:
-    def __init__(self):
-        self.create = lambda *args, **kwargs: None
-
-
-class _DummyOpenAI:
-    def __init__(self, *args, **kwargs):
-        self.chat = SimpleNamespace(completions=_DummyCompletions())
-
-
-sys.modules.setdefault("openai", SimpleNamespace(OpenAI=_DummyOpenAI))
-
 from backend.llm.annotator import Annotator
 from config.settings import Settings, get_settings
-from gpt_cell_annotator.scanpy import (
-    MARKER_DB_COLUMNS,
-    annotate_anndata,
-    main as scanpy_main,
-)
+from gpt_cell_annotator.scanpy import MARKER_DB_COLUMNS, annotate_anndata
+from gpt_cell_annotator.scanpy import main as scanpy_main
 
 
 def _build_mock_marker_db() -> pd.DataFrame:
@@ -60,15 +42,15 @@ def _build_mock_marker_db() -> pd.DataFrame:
 
 
 def _build_adata() -> ad.AnnData:
-    X = np.zeros((6, 4), dtype=float)
-    X[:3, 0] = 5.0  # cluster 0 expresses gene0 (MS4A1)
-    X[3:, 1] = 5.0  # cluster 1 expresses gene1 (CD3E)
+    matrix = np.zeros((6, 4), dtype=float)
+    matrix[:3, 0] = 5.0  # cluster 0 expresses gene0 (MS4A1)
+    matrix[3:, 1] = 5.0  # cluster 1 expresses gene1 (CD3E)
     obs = pd.DataFrame(
         {"cluster": ["0", "0", "0", "1", "1", "1"]},
         index=[f"cell_{i}" for i in range(6)],
     )
     var = pd.DataFrame(index=["MS4A1", "CD3E", "GNLY", "LYZ"])
-    adata = ad.AnnData(X, obs=obs, var=var)
+    adata = ad.AnnData(matrix, obs=obs, var=var)
     sc.pp.normalize_total(adata, target_sum=1e4)
     sc.pp.log1p(adata)
     return adata

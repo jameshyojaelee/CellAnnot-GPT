@@ -49,12 +49,12 @@ class HealthResponse(BaseModel):
 
 
 __all__ = [
+    "AnnotateBatchRequest",
+    "AnnotateClusterRequest",
+    "AnnotationResponse",
+    "BatchAnnotationResponse",
     "ClusterPayload",
     "ClusterStats",
     "DatasetContext",
-    "AnnotateClusterRequest",
-    "AnnotateBatchRequest",
-    "AnnotationResponse",
-    "BatchAnnotationResponse",
     "HealthResponse",
 ]

@@ -289,9 +289,12 @@ def page_review_results() -> None:
     records = []
     for cluster in clusters:
         annotation = cluster.get("annotation", {})
-        mapping_notes = annotation.get("mapping_notes") or annotation.get("metadata", {}).get("mapping_notes", [])
+        mapping_notes = annotation.get("mapping_notes") or annotation.get(
+            "metadata", {}
+        ).get("mapping_notes", [])
         mapping_summary = " | ".join(
-            f"{note.get('source', '?')}→{note.get('target') or 'unmapped'}" for note in mapping_notes
+            f"{note.get('source', '?')}→{note.get('target') or 'unmapped'}"
+            for note in mapping_notes
         )
         records.append(
             {
@@ -342,7 +345,9 @@ def page_review_results() -> None:
         proposed_label = annotation.get("proposed_label")
         canonical_markers = annotation.get("markers", [])
         original_markers = annotation.get("original_markers", canonical_markers)
-        mapping_notes = annotation.get("mapping_notes") or annotation.get("metadata", {}).get("mapping_notes", [])
+        mapping_notes = annotation.get("mapping_notes") or annotation.get(
+            "metadata", {}
+        ).get("mapping_notes", [])
         warnings = cluster.get("warnings", [])
         validation = cluster.get("validation")
         status = cluster.get("status", "supported").title()

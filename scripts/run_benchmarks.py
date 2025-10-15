@@ -6,22 +6,15 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+from collections.abc import Iterable
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable
 
 import pandas as pd
 
-import sys
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from backend.llm.annotator import Annotator  # noqa: E402
-from backend.llm.annotator import MockAnnotator  # noqa: E402
-from config.settings import Settings  # noqa: E402
+from backend.llm.annotator import Annotator, MockAnnotator
+from config.settings import Settings
 from evaluation.benchmark_runner import (
     BenchmarkResult,
     load_dataset,

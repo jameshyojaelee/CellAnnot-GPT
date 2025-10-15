@@ -5,8 +5,8 @@ import pytest
 
 from backend.validation.crosscheck import crosscheck_annotation
 from backend.validation.report import build_structured_report
-from frontend.streamlit_app import _parse_marker_field
 from config.settings import get_settings
+from frontend.streamlit_app import _parse_marker_field
 
 
 def make_marker_db() -> pd.DataFrame:

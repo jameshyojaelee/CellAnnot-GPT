@@ -74,4 +74,4 @@ def create_cache_from_env(url: str | None) -> RedisAnnotationCache | None:
         return None
 
 
-__all__ = ["RedisAnnotationCache", "CacheConfig", "create_cache_from_env"]
+__all__ = ["CacheConfig", "RedisAnnotationCache", "create_cache_from_env"]

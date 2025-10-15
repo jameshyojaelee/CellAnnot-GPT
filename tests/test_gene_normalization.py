@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from backend.util.gene_normalization import GeneNormalizer, get_gene_normalizer
-from config import settings
 
 
 def test_gene_normaliser_synonyms(tmp_path) -> None:
@@ -26,7 +25,6 @@ def test_gene_normaliser_synonyms(tmp_path) -> None:
     assert "MS4A1" in mouse
 
 
-def test_global_gene_normaliser_uses_settings(monkeypatch):
-    settings_dict = settings.Settings().model_dump()
+def test_global_gene_normaliser_uses_settings() -> None:
     normalizer = get_gene_normalizer()
     assert "MS4A1" in normalizer.normalise_marker("cd20", "Homo sapiens")

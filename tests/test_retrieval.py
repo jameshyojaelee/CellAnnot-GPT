@@ -5,7 +5,7 @@ from pathlib import Path
 
 from backend.llm import retrieval
 from backend.llm.retrieval import MarkerRetriever, retrieve_candidates
-from config.settings import Settings, get_settings
+from config.settings import Settings
 
 
 def _build_sqlite(db_path: Path) -> None:
@@ -27,7 +27,16 @@ def _build_sqlite(db_path: Path) -> None:
     )
     cur.executemany(
         """
-        INSERT INTO cell_markers (source, cell_type, ontology_id, gene_symbol, species, tissue, evidence, reference)
+        INSERT INTO cell_markers (
+            source,
+            cell_type,
+            ontology_id,
+            gene_symbol,
+            species,
+            tissue,
+            evidence,
+            reference
+        )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
@@ -61,8 +70,6 @@ def test_marker_retriever_returns_candidates(tmp_path: Path) -> None:
 def test_retrieve_candidates_integration(tmp_path: Path, monkeypatch) -> None:
     db_path = tmp_path / "marker_db.sqlite"
     _build_sqlite(db_path)
-
-    current = Settings()
 
     class DummySettings(Settings):
         def __init__(self) -> None:

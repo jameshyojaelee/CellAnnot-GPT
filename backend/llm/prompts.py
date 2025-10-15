@@ -33,9 +33,12 @@ def _format_candidates(cluster_payload: dict[str, Any]) -> str:
         supporting = ", ".join(candidate.get("supporting_markers") or []) or "n/a"
         ontology_id = candidate.get("ontology_id") or "unknown"
         overlap = candidate.get("overlap", 0)
-        lines.append(
-            f"{idx}. {candidate.get('cell_type', 'Unknown')} (ontology_id={ontology_id}, overlap={overlap}) supporting markers: {supporting}"
+        cell_type = candidate.get("cell_type", "Unknown")
+        description = (
+            f"{idx}. {cell_type} (ontology_id={ontology_id}, overlap={overlap}) "
+            f"supporting markers: {supporting}"
         )
+        lines.append(description)
     return "Knowledge base candidates:\\n" + "\\n".join(f"- {line}" for line in lines)
 
 
@@ -137,9 +140,8 @@ def build_uncertainty_prompt(
 
 
 __all__ = [
-    "build_system_prompt",
-    "build_single_cluster_prompt",
     "build_batch_prompt",
+    "build_single_cluster_prompt",
+    "build_system_prompt",
     "build_uncertainty_prompt",
 ]
-

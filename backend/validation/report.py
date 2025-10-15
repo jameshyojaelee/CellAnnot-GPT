@@ -156,7 +156,9 @@ def build_structured_report(
                 annotation_data["primary_label"] = "Unknown or Novel"
                 annotation_data["ontology_id"] = None
 
-        mapping_notes = annotation_data.get("mapping_notes") or annotation_data.get("metadata", {}).get("mapping_notes")
+        mapping_notes = annotation_data.get("mapping_notes") or annotation_data.get(
+            "metadata", {}
+        ).get("mapping_notes")
         if mapping_notes:
             annotation_data.setdefault("metadata", {})["mapping_notes"] = mapping_notes
             unresolved = [note for note in mapping_notes if not note.get("target")]
@@ -240,9 +242,9 @@ def render_text_report(report: DatasetReport | dict[str, Any]) -> str:
 
 __all__ = [
     "ClusterReport",
-    "DatasetSummary",
     "DatasetMetrics",
     "DatasetReport",
+    "DatasetSummary",
     "build_structured_report",
     "render_text_report",
 ]

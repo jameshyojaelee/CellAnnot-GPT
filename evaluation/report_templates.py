@@ -19,7 +19,7 @@ def render_dataset_report(
     regression_threshold: float = 0.05,
 ) -> str:
     lines = [
-        f"# Benchmark Report – {dataset_summary.get('dataset', 'unknown')}",
+        f"# Benchmark Report - {dataset_summary.get('dataset', 'unknown')}",
         "",
     ]
     for model in dataset_summary.get("models", []):

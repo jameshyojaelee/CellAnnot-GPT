@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
-import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, f1_score, precision_recall_fscore_support
 
@@ -49,11 +49,18 @@ def load_dataset(dataset_path: Path) -> dict[str, Any]:
         return json.load(fh)
 
 
-def _extract_predictions(report: dict[str, Any], ground_truth_lookup: dict[str, str]) -> list[PredictionRecord]:
+def _extract_predictions(
+    report: dict[str, Any],
+    ground_truth_lookup: dict[str, str],
+) -> list[PredictionRecord]:
     records: list[PredictionRecord] = []
     for cluster in report.get("clusters", []):
         annotation = cluster.get("annotation", {})
-        alternatives = [alt.get("label") for alt in annotation.get("alternatives", []) if isinstance(alt, dict)]
+        alternatives = [
+            alt.get("label")
+            for alt in annotation.get("alternatives", [])
+            if isinstance(alt, dict)
+        ]
         records.append(
             PredictionRecord(
                 cluster_id=str(cluster.get("cluster_id")),
@@ -80,7 +87,7 @@ def _compute_metrics(records: Iterable[PredictionRecord], runtime_seconds: float
     )
     per_class = {
         str(label): {"precision": float(p), "recall": float(r), "f1": float(f)}
-        for label, p, r, f in zip(labels, precision, recall, f1)
+        for label, p, r, f in zip(labels, precision, recall, f1, strict=True)
     }
 
     top3_hits = 0
@@ -135,7 +142,9 @@ def run_gpt_benchmark(
     runtime = time.perf_counter() - start
 
     annotations = []
-    ground_truth_lookup = {str(cluster["cluster_id"]): cluster["ground_truth"] for cluster in clusters}
+    ground_truth_lookup = {
+        str(cluster["cluster_id"]): cluster["ground_truth"] for cluster in clusters
+    }
     for cluster in clusters:
         cluster_id = str(cluster["cluster_id"])
         annotations.append(
@@ -192,7 +201,9 @@ def run_marker_overlap_baseline(
         for label, df in markers_grouped:
             df_species = df
             if context.get("species"):
-                df_species = df_species[df_species["species"].str.lower() == context["species"].lower()]
+                df_species = df_species[
+                    df_species["species"].str.lower() == context["species"].lower()
+                ]
             if df_species.empty:
                 continue
             overlap = len(markers & set(df_species["gene_symbol"].str.upper()))
@@ -204,6 +215,13 @@ def run_marker_overlap_baseline(
 
         overlaps.sort(key=lambda item: item[1], reverse=True)
         alternatives = [label for label, _ in overlaps[1:3]]
+        if best_overlap >= 3:
+            confidence = "High"
+        elif best_overlap == 2:
+            confidence = "Medium"
+        else:
+            confidence = "Low"
+
         cluster_predictions.append(
             PredictionRecord(
                 cluster_id=str(cluster["cluster_id"]),
@@ -211,7 +229,7 @@ def run_marker_overlap_baseline(
                 primary_label=best_label if best_overlap else "Unknown or Novel",
                 alternatives=alternatives,
                 status="supported" if best_overlap else "flagged",
-                confidence="High" if best_overlap >= 3 else "Medium" if best_overlap == 2 else "Low",
+                confidence=confidence,
                 flag_reasons=[] if best_overlap else ["No marker overlap with knowledge base"],
             )
         )
@@ -233,16 +251,20 @@ def run_marker_overlap_baseline(
     )
 
 
-def load_and_run(dataset_path: Path, annotator: Annotator, marker_db: pd.DataFrame) -> BenchmarkResult:
+def load_and_run(
+    dataset_path: Path,
+    annotator: Annotator,
+    marker_db: pd.DataFrame,
+) -> BenchmarkResult:
     dataset = load_dataset(dataset_path)
     return run_gpt_benchmark(dataset, annotator, marker_db)
 
 
 __all__ = [
-    "PredictionRecord",
     "BenchmarkResult",
+    "PredictionRecord",
+    "load_and_run",
     "load_dataset",
     "run_gpt_benchmark",
     "run_marker_overlap_baseline",
-    "load_and_run",
 ]

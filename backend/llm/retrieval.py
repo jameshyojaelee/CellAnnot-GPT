@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Iterable, Sequence
 
 from backend.util.gene_normalization import get_gene_normalizer
 from config.settings import get_settings
@@ -166,4 +166,4 @@ def retrieve_candidates(
         return []
 
 
-__all__ = ["retrieve_candidates", "RetrievalCandidate", "get_retriever", "MarkerRetriever"]
+__all__ = ["MarkerRetriever", "RetrievalCandidate", "get_retriever", "retrieve_candidates"]

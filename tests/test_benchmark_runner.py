@@ -1,30 +1,19 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
-from types import SimpleNamespace
-
-import pytest
 
 import pandas as pd
+import pytest
 
-class _DummyOpenAI:
-    def __init__(self, *_, **__):
-        self.chat = SimpleNamespace(completions=SimpleNamespace(create=lambda **kwargs: None))
-
-
-sys.modules.setdefault("openai", SimpleNamespace(OpenAI=_DummyOpenAI))
-
-
-from evaluation.benchmark_runner import (  # noqa: E402
+from config.settings import get_settings
+from evaluation.benchmark_runner import (
     BenchmarkResult,
     load_and_run,
     run_gpt_benchmark,
     run_marker_overlap_baseline,
 )
 from evaluation.report_templates import render_dataset_report, render_sparkline_csv
-from config.settings import get_settings
 
 MARKER_DB = pd.DataFrame(
     [

@@ -442,12 +442,12 @@ def default_sources(config_path: Path | None = None) -> list[SourceConfig]:
 
 
 __all__ = [
+    "NORMALIZED_COLUMNS",
     "MarkerDataLoader",
     "SourceConfig",
-    "parse_panglaodb",
+    "default_sources",
+    "load_sources_from_yaml",
     "parse_cellmarker",
     "parse_curated_json",
-    "load_sources_from_yaml",
-    "default_sources",
-    "NORMALIZED_COLUMNS",
+    "parse_panglaodb",
 ]

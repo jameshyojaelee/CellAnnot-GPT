@@ -10,11 +10,13 @@ from pathlib import Path
 from typing import Any, cast
 
 from jsonschema import Draft202012Validator
+
 try:  # structlog is optional in certain environments (e.g., tests)
     from structlog.contextvars import get_contextvars
 except ImportError:  # pragma: no cover - fallback when structlog not available
     def get_contextvars() -> dict[str, Any]:  # type: ignore[name-defined]
         return {}
+
 from openai import OpenAI
 
 from backend.llm import prompts
@@ -347,7 +349,7 @@ class Annotator:
             result = self._parse_json(raw, context="annotate_batch")
             self._validate_batch_payload(result)
             self._log_response("annotate_batch", result)
-            for original_cluster, enriched in zip(clusters, enriched_clusters):
+            for original_cluster, enriched in zip(clusters, enriched_clusters, strict=True):
                 cluster_id = str(original_cluster.get("cluster_id"))
                 metadata = result.setdefault(cluster_id, {}).setdefault("metadata", {})
                 if enriched.get("mapping_notes"):
@@ -587,4 +589,4 @@ class Annotator:
         time.sleep(seconds)
 
 
-__all__ = ["Annotator", "AnnotationError", "SchemaValidationError", "MockAnnotator"]
+__all__ = ["AnnotationError", "Annotator", "MockAnnotator", "SchemaValidationError"]

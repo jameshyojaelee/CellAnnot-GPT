@@ -14,7 +14,11 @@ def reset_settings_cache() -> None:
     settings.get_settings.cache_clear()
 
 
-def test_cli_annotate_offline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_annotate_offline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     assets_home = tmp_path / "assets"
     monkeypatch.setenv("GPT_CELL_ANNOTATOR_HOME", str(assets_home))
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)

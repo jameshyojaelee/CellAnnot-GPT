@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -86,7 +86,7 @@ def plot_calibration(predictions: Iterable[dict], output_path: Path) -> None:
 
 
 __all__ = [
+    "plot_calibration",
     "plot_confusion_matrix",
     "plot_precision_recall_bars",
-    "plot_calibration",
 ]
