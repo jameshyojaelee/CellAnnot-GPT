@@ -81,6 +81,7 @@ ignore_missing_imports = true
 minversion = "7.0"
 addopts = "-ra --strict-markers"
 testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.poe.tasks]
 install = "poetry install"
