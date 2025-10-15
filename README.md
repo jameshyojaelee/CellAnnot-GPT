@@ -59,6 +59,7 @@ curl -s -X POST http://127.0.0.1:8000/annotate_batch \
 [![Workflow Overview](https://img.shields.io/badge/docs-workflow-orange)](docs/getting_started.md#workflow-at-a-glance)
 [![Scanpy Integration](https://img.shields.io/badge/docs-scanpy_integration-teal)](docs/scanpy_integration.md)
 [![Benchmarks](https://img.shields.io/badge/docs-benchmarks-red)](docs/benchmarks.md)
+[![FAQ](https://img.shields.io/badge/docs-faq-lightgrey)](docs/faq.md)
 
 **Workflow cheat sheet**
 - Build the marker knowledge base from the sources listed in `config/marker_sources.yaml`; outputs land in `data/processed/`.

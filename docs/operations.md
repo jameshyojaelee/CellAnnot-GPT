@@ -31,3 +31,4 @@
 - **Flag reasons:** validation output includes machine- and human-readable reasons such as `low_marker_overlap`, `species_mismatch`, and `missing_ontology_id`. The UI surfaces these reasons and metrics under “Flagged reasons”.
 - **Original suggestions:** when a cluster is flagged, the report retains `annotation.proposed_label` alongside the downgraded `primary_label` so reviewers can still inspect the model’s initial suggestion.
 - **Schema enforcement:** the LLM response schema requires ontology identifiers and marker lists. Validation failures issue structured logs containing trace IDs for easier troubleshooting.
+- **Retrieval augmentation:** control prompt-time candidate injection via `RAG_ENABLED`, `RAG_TOP_K`, and `RAG_MIN_OVERLAP`. Set `SYNONYM_CONFIG_PATH` to customise alias/ortholog resolution; disable with `SYNONYM_ENABLE_ORTHOLOGS=false` for debugging.

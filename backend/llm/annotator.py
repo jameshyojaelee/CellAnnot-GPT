@@ -18,6 +18,7 @@ except ImportError:  # pragma: no cover - fallback when structlog not available
 from openai import OpenAI
 
 from backend.llm import prompts
+from backend.llm.retrieval import retrieve_candidates
 from config.settings import Settings, get_settings
 
 logger = logging.getLogger("gpt_cell_annotator.llm")
@@ -252,15 +253,23 @@ class Annotator:
     ) -> dict[str, Any]:
         """Annotate a single cluster and return the parsed JSON response."""
 
-        if self._mode == "mock" or self._client is None:
-            return self._mock_backend.annotate_cluster(cluster_payload, dataset_context)
+        enriched_payload = self._prepare_cluster_payload(
+            cluster_payload,
+            dataset_context,
+        )
 
-        self._log_request("annotate_cluster", cluster_payload, dataset_context)
+        if self._mode == "mock" or self._client is None:
+            return self._mock_backend.annotate_cluster(enriched_payload, dataset_context)
+
+        self._log_request("annotate_cluster", enriched_payload, dataset_context)
         messages = [
             {"role": "system", "content": prompts.build_system_prompt()},
             {
                 "role": "user",
-                "content": prompts.build_single_cluster_prompt(cluster_payload, dataset_context),
+                "content": prompts.build_single_cluster_prompt(
+                    enriched_payload,
+                    dataset_context,
+                ),
             },
         ]
         try:
@@ -275,7 +284,7 @@ class Annotator:
             return result
         except (AnnotationError, SchemaValidationError) as exc:
             logger.warning("annotate_cluster falling back to heuristics: %s", exc)
-            fallback = self._mock_backend.annotate_cluster(cluster_payload, dataset_context)
+            fallback = self._mock_backend.annotate_cluster(enriched_payload, dataset_context)
             self._append_warning(fallback, f"Mock annotator used due to LLM error: {exc}")
             return fallback
 
@@ -289,13 +298,16 @@ class Annotator:
         if self._mode == "mock" or self._client is None:
             return self._mock_backend.annotate_batch(clusters, dataset_context)
 
-        clusters_list = list(clusters)
-        self._log_request("annotate_batch", clusters_list, dataset_context)
+        enriched_clusters = [
+            self._prepare_cluster_payload(cluster, dataset_context)
+            for cluster in clusters
+        ]
+        self._log_request("annotate_batch", enriched_clusters, dataset_context)
         messages = [
             {"role": "system", "content": prompts.build_system_prompt()},
             {
                 "role": "user",
-                "content": prompts.build_batch_prompt(clusters_list, dataset_context),
+                "content": prompts.build_batch_prompt(enriched_clusters, dataset_context),
             },
         ]
         try:
@@ -310,7 +322,7 @@ class Annotator:
             return result
         except (AnnotationError, SchemaValidationError) as exc:
             logger.warning("annotate_batch falling back to heuristics: %s", exc)
-            fallback = self._mock_backend.annotate_batch(clusters_list, dataset_context)
+            fallback = self._mock_backend.annotate_batch(enriched_clusters, dataset_context)
             for cluster_result in fallback.values():
                 self._append_warning(cluster_result, f"Mock annotator used due to LLM error: {exc}")
             return fallback
@@ -371,6 +383,32 @@ class Annotator:
             warnings.append(message)
         else:
             annotation["warnings"] = [message]
+
+    def _prepare_cluster_payload(
+        self,
+        cluster_payload: dict[str, Any],
+        dataset_context: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        payload = dict(cluster_payload)
+        context = dataset_context or {}
+        if not self.settings.rag_enabled:
+            return payload
+        species = context.get("species") if isinstance(context, dict) else None
+        tissue = context.get("tissue") if isinstance(context, dict) else None
+        markers = payload.get("markers") or []
+        candidates = retrieve_candidates(markers, species=species, tissue=tissue)
+        if candidates:
+            payload["retrieved_candidates"] = [
+                {
+                    "cell_type": candidate.cell_type,
+                    "ontology_id": candidate.ontology_id,
+                    "overlap": candidate.overlap,
+                    "supporting_markers": candidate.supporting_markers,
+                    "tissue_counts": candidate.tissue_counts,
+                }
+                for candidate in candidates
+            ]
+        return payload
 
     def _log_request(
         self,

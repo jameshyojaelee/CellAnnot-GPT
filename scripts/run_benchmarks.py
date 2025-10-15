@@ -13,9 +13,15 @@ from typing import Iterable
 
 import pandas as pd
 
-from backend.llm.annotator import Annotator
-from backend.llm.annotator import MockAnnotator
-from config.settings import Settings
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from backend.llm.annotator import Annotator  # noqa: E402
+from backend.llm.annotator import MockAnnotator  # noqa: E402
+from config.settings import Settings  # noqa: E402
 from evaluation.benchmark_runner import (
     BenchmarkResult,
     load_dataset,

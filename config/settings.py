@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     validation_force_unknown_on_fail: bool = Field(default=True)
     confidence_overlap_medium: int = Field(default=2, ge=0)
     confidence_overlap_high: int = Field(default=3, ge=0)
+    rag_enabled: bool = Field(default=True)
+    rag_top_k: int = Field(default=5, ge=1)
+    rag_min_overlap: int = Field(default=1, ge=0)
+    rag_cache_size: int = Field(default=256, ge=0)
+    synonym_config_path: str = Field(default="config/gene_synonyms.json")
+    synonym_enable_orthologs: bool = Field(default=True)
 
     class Config:
         env_file = ".env"

@@ -1,0 +1,32 @@
+{
+  "Homo sapiens": {
+    "MS4A1": ["CD20"],
+    "CD79A": ["MB-1"],
+    "CD3D": ["T3D", "CD3DELTA"],
+    "CD2": ["T11"],
+    "SLC17A7": ["VGLUT1"],
+    "GAD1": ["GAD-67"],
+    "GFAP": ["GLIALFIBRILLARYACIDICPROTEIN"],
+    "SCGB1A1": ["CC10", "UGBP"],
+    "SFTPC": ["SURFACTANTPROTEINC"],
+    "KRT5": ["CYTOKERATIN5"],
+    "LYZ": ["LYSOZYME"],
+    "GNLY": ["NKL"]
+  },
+  "Mus musculus": {
+    "Cd79a": ["Mb-1"],
+    "Ms4a1": ["Cd20"],
+    "Cd3d": ["T3d"],
+    "Slc17a7": ["Vglut1"],
+    "Gad1": ["Gad-67"],
+    "Scgb1a1": ["Cc10"]
+  },
+  "orthologs": {
+    "Cd79a": "CD79A",
+    "Ms4a1": "MS4A1",
+    "Cd3d": "CD3D",
+    "Slc17a7": "SLC17A7",
+    "Gad1": "GAD1",
+    "Scgb1a1": "SCGB1A1"
+  }
+}
