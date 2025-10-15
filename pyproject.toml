@@ -52,6 +52,7 @@ altair = "^5.3.0"
 fpdf2 = "^2.7.0"
 structlog = "^24.1.0"
 jsonschema = "^4.25.0"
+scanpy = "^1.10.1"
 
 [tool.ruff.lint]
 select = [ "E", "F", "B", "I", "UP", "N", "RUF",]

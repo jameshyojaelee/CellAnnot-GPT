@@ -2,6 +2,14 @@
 
 GPT Cell Annotator is an AI assistant that annotates single-cell RNA-seq clusters by combining curated marker knowledge with a large language model. It delivers evidence-backed cell type suggestions, confidence scoring, and validation tooling that reduces manual labeling time from days to minutes.
 
+## Why It Matters
+
+- Manual scRNA-seq annotation is slow and inconsistent; experts triage clusters by cross-referencing markers, literature, and ontologies — hours to days per dataset.
+- Existing tools (reference-mapping like SingleR/CellTypist, latent-transfer like scANVI) work best with high-quality reference atlases; they struggle on novel cell states, rare types, or out-of-distribution data.
+- An LLM assistant adds flexible knowledge integration and explanations, but must be guarded against hallucinations via validation and “unknown” handling.
+
+See `docs/why.md` for background and motivation.
+
 ## Quick Start
 
 ```bash
@@ -48,6 +56,14 @@ curl -s -X POST http://127.0.0.1:8000/annotate_batch \
 [![Getting Started](https://img.shields.io/badge/docs-getting_started-blue)](docs/getting_started.md)
 [![API Reference](https://img.shields.io/badge/docs-api_reference-green)](docs/api_reference.md)
 [![Operations](https://img.shields.io/badge/docs-operations-purple)](docs/operations.md)
+[![Workflow Overview](https://img.shields.io/badge/docs-workflow-orange)](docs/getting_started.md#workflow-at-a-glance)
+[![Scanpy Integration](https://img.shields.io/badge/docs-scanpy_integration-teal)](docs/scanpy_integration.md)
+
+**Workflow cheat sheet**
+- Build the marker knowledge base from the sources listed in `config/marker_sources.yaml`; outputs land in `data/processed/`.
+- Start the FastAPI backend so it can load the marker DB and expose `/annotate_cluster` / `/annotate_batch`.
+- Upload cluster markers (e.g., `data/demo/pbmc_markers.csv`) via the Streamlit UI or call the API to receive JSON annotations you can store alongside Scanpy results.
+- Drop into notebooks with `annotate_anndata` or run `python -m gpt_cell_annotator.scanpy annotate` for batch pipelines.
 
 - Marker knowledge ingestion from PanglaoDB, CellMarker, and curated literature.
 - Prompt-engineered LLM annotation engine with batch support and uncertainty handling.
