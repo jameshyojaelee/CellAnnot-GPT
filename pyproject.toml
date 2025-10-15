@@ -26,11 +26,11 @@ packages = [
     { include = "gpt_cell_annotator" },
     { include = "backend" },
     { include = "config" },
-    { include = "schemas" },
     { include = "frontend" },
 ]
 include = [
     { path = "gpt_cell_annotator/_assets/**/*", format = [ "sdist", "wheel" ] },
+    { path = "schemas/**/*.json", format = [ "sdist", "wheel" ] },
 ]
 
 [tool.poetry.scripts]
