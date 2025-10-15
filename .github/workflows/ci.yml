@@ -44,14 +44,25 @@ jobs:
         run: docker build -t cellannot-gpt-ci .
 
       - name: Log in to GHCR
-        if: ${{ github.ref == 'refs/heads/main' && secrets.GHCR_TOKEN != '' }}
+        if: github.ref == 'refs/heads/main'
         env:
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        run: |
+          if [ -z "$GHCR_TOKEN" ]; then
+            echo "GHCR_TOKEN not set; skipping login"
+            exit 0
+          fi
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Tag and push image
-        if: ${{ github.ref == 'refs/heads/main' && secrets.GHCR_TOKEN != '' }}
+        if: github.ref == 'refs/heads/main'
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
+          if [ -z "$GHCR_TOKEN" ]; then
+            echo "GHCR_TOKEN not set; skipping push"
+            exit 0
+          fi
           IMAGE=ghcr.io/${{ github.repository }}/cellannot-gpt:${{ github.sha }}
           docker tag cellannot-gpt-ci "$IMAGE"
           docker push "$IMAGE"
