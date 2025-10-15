@@ -160,10 +160,9 @@ def compute_checksum(payload: bytes, algorithm: str) -> str:
     """Return the hexadecimal digest for the given payload."""
 
     try:
-        hasher = getattr(hashlib, algorithm)
-    except AttributeError as exc:
+        return hashlib.new(algorithm, payload).hexdigest()
+    except ValueError as exc:
         raise ValueError(f"Unsupported checksum algorithm '{algorithm}'") from exc
-    return hasher(payload).hexdigest()
 
 
 def classify_evidence_strength(evidence: str) -> str:

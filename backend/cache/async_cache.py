@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -27,9 +28,7 @@ async def get_cached_or_run(
 
 
 async def _evaluate(func: Callable[[], Awaitable[Any]] | Callable[[], Any]) -> Any:
-    if asyncio.iscoroutinefunction(func):  # type: ignore[arg-type]
-        return await func()  # type: ignore[misc]
     result = func()
-    if asyncio.iscoroutine(result):
-        return await result  # type: ignore[misc]
+    if inspect.isawaitable(result):
+        return await result
     return await asyncio.to_thread(lambda: result)

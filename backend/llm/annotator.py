@@ -7,7 +7,7 @@ import logging
 import time
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from jsonschema import Draft202012Validator
 from openai import OpenAI
@@ -403,23 +403,26 @@ class Annotator:
         for attempt in range(1, retries + 1):
             self._enforce_rate_limit()
             try:
+                response_format: Any = {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": schema_name,
+                        "schema": schema,
+                    },
+                }
                 response = self._client.chat.completions.create(
                     model=self.settings.openai_model,
-                    messages=messages,
+                    messages=cast(Any, messages),
                     temperature=self.settings.openai_temperature,
                     max_tokens=self.settings.openai_max_tokens,
-                    response_format={
-                        "type": "json_schema",
-                        "json_schema": {
-                            "name": schema_name,
-                            "schema": schema,
-                        },
-                    },
+                    response_format=cast(Any, response_format),
                 )
-                content = response.choices[0].message.content  # type: ignore[attr-defined]
-                if not content:
+                content = response.choices[0].message.content
+                if content is None:
                     raise AnnotationError("LLM returned empty content")
-                return content.strip()
+                if isinstance(content, list):
+                    raise AnnotationError("LLM returned non-text content")
+                return str(content).strip()
             except AnnotationError:
                 raise
             except Exception as exc:  # pragma: no cover - fallback path tested via mocks

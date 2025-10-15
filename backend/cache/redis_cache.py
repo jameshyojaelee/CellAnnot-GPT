@@ -41,7 +41,12 @@ class RedisAnnotationCache:
         if raw is None:
             return None
         try:
-            return json.loads(raw)
+            decoded = json.loads(raw)
+            if isinstance(decoded, dict):
+                return decoded
+            logger.warning("Unexpected payload type in cache for key %s; evicting", key)
+            await self._client.delete(key)
+            return None
         except json.JSONDecodeError:
             logger.warning("Invalid JSON in cache for key %s; evicting", key)
             await self._client.delete(key)

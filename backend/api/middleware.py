@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 import structlog
 from fastapi import Request, Response
@@ -14,7 +14,7 @@ logger = structlog.get_logger("cellannot.api")
 
 async def logging_middleware(
     request: Request,
-    call_next: Callable[[Request], Response],
+    call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
     """Attach trace ID and emit structured timing logs."""
 

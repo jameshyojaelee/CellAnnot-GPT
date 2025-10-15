@@ -37,6 +37,9 @@ ruff = "^0.4.4"
 poethepoet = "^0.27.0"
 pytest-asyncio = "^0.23.7"
 fakeredis = "^2.23.2"
+pandas-stubs = "^2.2.2.240807"
+types-pyyaml = "^6.0.12.20240808"
+types-jsonschema = "^4.23.0.20241019"
 
 [build-system]
 requires = ["poetry-core>=1.8.0"]
@@ -62,6 +65,17 @@ warn_unused_ignores = true
 strict_optional = true
 implicit_reexport = false
 mypy_path = "$PROJECT_ROOT"
+
+[[tool.mypy.overrides]]
+module = [
+  "pandas",
+  "pandas.*",
+  "yaml",
+  "yaml.*",
+  "jsonschema",
+  "jsonschema.*",
+]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 minversion = "7.0"
