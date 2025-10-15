@@ -1,10 +1,34 @@
+[build-system]
+requires = [ "poetry-core>=1.8.0",]
+build-backend = "poetry.core.masonry.api"
+
 [tool.poetry]
 name = "cellannot-gpt"
 version = "0.1.0"
 description = "AI assistant for annotating single-cell RNA-seq clusters using curated marker knowledge and LLM reasoning."
-authors = ["Your Name <you@example.com>"]
+authors = [ "Your Name <you@example.com>",]
 readme = "README.md"
 package-mode = false
+
+[tool.black]
+line-length = 100
+target-version = [ "py311",]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_configs = true
+warn_return_any = true
+warn_unused_ignores = true
+strict_optional = true
+implicit_reexport = false
+mypy_path = "$PROJECT_ROOT"
+[[tool.mypy.overrides]]
+module = [ "pandas", "pandas.*", "yaml", "yaml.*", "jsonschema", "jsonschema.*",]
+ignore_missing_imports = true
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -12,8 +36,7 @@ openai = "^1.30.0"
 pandas = "^2.2.2"
 numpy = "^1.26.4"
 anndata = "^0.10.7"
-fastapi = "^0.111.0"
-uvicorn = {version = "^0.30.1", extras = ["standard"]}
+fastapi = "^0.115.0"
 starlette = "^0.40.0"
 streamlit = "^1.36.0"
 scikit-learn = "^1.5.0"
@@ -30,6 +53,51 @@ fpdf2 = "^2.7.0"
 structlog = "^24.1.0"
 jsonschema = "^4.25.0"
 
+[tool.ruff.lint]
+select = [ "E", "F", "B", "I", "UP", "N", "RUF",]
+ignore = [ "B008",]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra --strict-markers"
+testpaths = [ "tests",]
+pythonpath = [ ".",]
+
+[tool.poe.tasks]
+install = "poetry install"
+lock = "poetry lock"
+
+[tool.poetry.dependencies.uvicorn]
+version = "^0.30.1"
+extras = [ "standard",]
+
+[tool.poe.tasks.format]
+cmd = "black backend frontend evaluation scripts config tests"
+
+[tool.poe.tasks.ruff]
+cmd = "ruff check backend frontend evaluation scripts config tests"
+
+[tool.poe.tasks.ruff-fix]
+cmd = "ruff check --fix backend frontend evaluation scripts config tests"
+
+[tool.poe.tasks.typecheck]
+cmd = "mypy backend"
+
+[tool.poe.tasks.test]
+cmd = "pytest"
+
+[tool.poe.tasks.lint]
+sequence = [ "ruff", "typecheck",]
+
+[tool.poe.tasks.build-marker-db]
+cmd = "python scripts/build_marker_db.py"
+
+[tool.poe.tasks.api]
+cmd = "uvicorn backend.api.main:app --reload"
+
+[tool.poe.tasks.ui]
+cmd = "streamlit run frontend/streamlit_app.py"
+
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.1"
 black = "^24.4.2"
@@ -41,58 +109,3 @@ fakeredis = "^2.23.2"
 pandas-stubs = "^2.2.2.240807"
 types-pyyaml = "^6.0.12.20240808"
 types-jsonschema = "^4.23.0.20241019"
-
-[build-system]
-requires = ["poetry-core>=1.8.0"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.black]
-line-length = 100
-target-version = ["py311"]
-
-[tool.ruff]
-line-length = 100
-target-version = "py311"
-
-[tool.ruff.lint]
-select = ["E", "F", "B", "I", "UP", "N", "RUF"]
-ignore = ["B008"]
-
-[tool.mypy]
-python_version = "3.11"
-warn_unused_configs = true
-warn_return_any = true
-warn_unused_ignores = true
-strict_optional = true
-implicit_reexport = false
-mypy_path = "$PROJECT_ROOT"
-
-[[tool.mypy.overrides]]
-module = [
-  "pandas",
-  "pandas.*",
-  "yaml",
-  "yaml.*",
-  "jsonschema",
-  "jsonschema.*",
-]
-ignore_missing_imports = true
-
-[tool.pytest.ini_options]
-minversion = "7.0"
-addopts = "-ra --strict-markers"
-testpaths = ["tests"]
-pythonpath = ["."]
-
-[tool.poe.tasks]
-install = "poetry install"
-lock = "poetry lock"
-format = {cmd = "black backend frontend evaluation scripts config tests"}
-ruff = {cmd = "ruff check backend frontend evaluation scripts config tests"}
-ruff-fix = {cmd = "ruff check --fix backend frontend evaluation scripts config tests"}
-typecheck = {cmd = "mypy backend"}
-test = {cmd = "pytest"}
-lint = {sequence = ["ruff", "typecheck"]}
-build-marker-db = {cmd = "python scripts/build_marker_db.py"}
-api = {cmd = "uvicorn backend.api.main:app --reload"}
-ui = {cmd = "streamlit run frontend/streamlit_app.py"}
