@@ -58,12 +58,14 @@ curl -s -X POST http://127.0.0.1:8000/annotate_batch \
 [![Operations](https://img.shields.io/badge/docs-operations-purple)](docs/operations.md)
 [![Workflow Overview](https://img.shields.io/badge/docs-workflow-orange)](docs/getting_started.md#workflow-at-a-glance)
 [![Scanpy Integration](https://img.shields.io/badge/docs-scanpy_integration-teal)](docs/scanpy_integration.md)
+[![Benchmarks](https://img.shields.io/badge/docs-benchmarks-red)](docs/benchmarks.md)
 
 **Workflow cheat sheet**
 - Build the marker knowledge base from the sources listed in `config/marker_sources.yaml`; outputs land in `data/processed/`.
 - Start the FastAPI backend so it can load the marker DB and expose `/annotate_cluster` / `/annotate_batch`.
 - Upload cluster markers (e.g., `data/demo/pbmc_markers.csv`) via the Streamlit UI or call the API to receive JSON annotations you can store alongside Scanpy results.
 - Drop into notebooks with `annotate_anndata` or run `python -m gpt_cell_annotator.scanpy annotate` for batch pipelines.
+- Tune guardrails with `VALIDATION_MIN_MARKER_OVERLAP`, `VALIDATION_FORCE_UNKNOWN_ON_FAIL`, `CONFIDENCE_OVERLAP_MEDIUM`, and `CONFIDENCE_OVERLAP_HIGH` to balance conservatism vs. recall.
 
 - Marker knowledge ingestion from PanglaoDB, CellMarker, and curated literature.
 - Prompt-engineered LLM annotation engine with batch support and uncertainty handling.

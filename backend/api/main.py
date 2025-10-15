@@ -121,6 +121,7 @@ async def annotate_cluster(
             marker_db,
             species=(payload.dataset_context.species if payload.dataset_context else None),
             tissue=(payload.dataset_context.tissue if payload.dataset_context else None),
+            min_support=settings.validation_min_marker_overlap,
         )
         report_model = build_structured_report([annotation_record], crosschecked)
         report = report_model.model_dump()
@@ -198,6 +199,7 @@ async def annotate_batch(
         marker_db,
         species=(payload.dataset_context.species if payload.dataset_context else None),
         tissue=(payload.dataset_context.tissue if payload.dataset_context else None),
+        min_support=settings.validation_min_marker_overlap,
     )
     report_model = build_structured_report(annotations, crosschecked)
     report = report_model.model_dump()

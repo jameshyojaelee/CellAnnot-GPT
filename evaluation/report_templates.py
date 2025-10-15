@@ -12,70 +12,62 @@ def _format_delta(delta: float | None, regression_threshold: float) -> str:
     return f" {delta_percent}"
 
 
-def render_markdown_report(
-    result: dict,
+def render_dataset_report(
+    dataset_summary: dict[str, object],
     *,
-    deltas: dict[str, float | None] | None = None,
+    deltas: dict[str, dict[str, float | None]] | None = None,
     regression_threshold: float = 0.05,
 ) -> str:
     lines = [
-        "# GPT Cell Annotator Benchmark Report",
-        "",
-        (
-            f"- Accuracy: {result['accuracy']:.2%}"
-            f"{_format_delta((deltas or {}).get('accuracy'), regression_threshold)}"
-        ),
-        (
-            f"- Macro F1: {result['macro_f1']:.2%}"
-            f"{_format_delta((deltas or {}).get('macro_f1'), regression_threshold)}"
-        ),
-        "",
-        "## Per-class Metrics",
+        f"# Benchmark Report – {dataset_summary.get('dataset', 'unknown')}",
         "",
     ]
-    for label, metrics in result["per_class"].items():
-        lines.append(
-            "- **{label}**: Precision {precision:.2%}, "
-            "Recall {recall:.2%}, F1 {f1:.2%}".format(
-                label=label,
-                precision=metrics["precision"],
-                recall=metrics["recall"],
-                f1=metrics["f1"],
-            )
+    for model in dataset_summary.get("models", []):
+        name = model["model_name"]
+        model_deltas = (deltas or {}).get(name, {})
+        lines.extend(
+            [
+                f"## {name}",
+                "",
+                (
+                    f"- Accuracy: {model['accuracy']:.2%}"
+                    f"{_format_delta(model_deltas.get('accuracy'), regression_threshold)}"
+                ),
+                (
+                    f"- Macro F1: {model['macro_f1']:.2%}"
+                    f"{_format_delta(model_deltas.get('macro_f1'), regression_threshold)}"
+                ),
+                f"- Top-3 recall: {model['top3_recall']:.2%}",
+                f"- Unknown rate: {model['unknown_rate']:.2%}",
+                f"- Flag precision: {model['flag_precision']:.2%}",
+                f"- Time per cluster: {model['time_per_cluster']:.3f}s",
+                "",
+                "### Per-class metrics",
+            ]
         )
-    lines.append("\n## Prediction Details\n")
-    for pred in result["predictions"]:
-        lines.append(
-            "- Cluster {id}: predicted {pred} (truth {truth})".format(
-                id=pred["cluster_id"],
-                pred=pred["predicted"],
-                truth=pred["ground_truth"],
+        for label, metrics in model["per_class"].items():
+            lines.append(
+                "- **{label}**: Precision {precision:.2%}, Recall {recall:.2%}, "
+                "F1 {f1:.2%}".format(
+                    label=label,
+                    precision=metrics["precision"],
+                    recall=metrics["recall"],
+                    f1=metrics["f1"],
+                )
             )
-        )
+        lines.append("")
+        lines.append("### Prediction details")
+        for pred in model["predictions"]:
+            lines.append(
+                "- Cluster {id}: predicted {pred} (truth {truth}); status {status}".format(
+                    id=pred["cluster_id"],
+                    pred=pred["primary_label"],
+                    truth=pred["ground_truth"],
+                    status=pred.get("status", "unknown"),
+                )
+            )
+        lines.append("")
     return "\n".join(lines)
-
-
-def render_text_confusion_matrix(result: dict) -> str:
-    truth_labels = sorted({row["ground_truth"] for row in result["predictions"]})
-    pred_labels = sorted({row["predicted"] for row in result["predictions"]})
-    labels = sorted(set(truth_labels) | set(pred_labels))
-    matrix_lines = ["Confusion Matrix (rows=truth, cols=prediction)"]
-    header = "\t".join([" ", *labels])
-    matrix_lines.append(header)
-    counts = {label: {label_name: 0 for label_name in labels} for label in labels}
-    for row in result["predictions"]:
-        truth = row.get("ground_truth")
-        pred = row.get("predicted")
-        if truth not in counts:
-            counts[truth] = {label_name: 0 for label_name in labels}
-        if pred not in counts:
-            for key in counts:
-                counts[key].setdefault(pred, 0)
-        counts[truth][pred] += 1
-    for truth in labels:
-        row_counts = "\t".join(str(counts[truth][pred]) for pred in labels)
-        matrix_lines.append(f"{truth}\t{row_counts}")
-    return "\n".join(matrix_lines)
 
 
 def render_sparkline_csv(dataset: str, history: Iterable[dict[str, float]]) -> str:
@@ -87,3 +79,6 @@ def render_sparkline_csv(dataset: str, history: Iterable[dict[str, float]]) -> s
             f"{entry.get('macro_f1', 0.0):.4f}"
         )
     return "\n".join(rows)
+
+
+__all__ = ["render_dataset_report", "render_sparkline_csv"]

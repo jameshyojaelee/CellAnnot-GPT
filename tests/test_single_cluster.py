@@ -6,6 +6,7 @@ import pytest
 from backend.validation.crosscheck import crosscheck_annotation
 from backend.validation.report import build_structured_report
 from frontend.streamlit_app import _parse_marker_field
+from config.settings import get_settings
 
 
 def make_marker_db() -> pd.DataFrame:
@@ -20,12 +21,14 @@ def make_marker_db() -> pd.DataFrame:
                 "tissue": "Blood",
                 "evidence": "",
                 "reference": "",
+                "evidence_score": "high",
             }
         ]
     )
 
 
 def test_build_report_for_single_cluster():
+    get_settings().validation_min_marker_overlap = 1
     annotation = {
         "cluster_id": "single",
         "primary_label": "B cell",

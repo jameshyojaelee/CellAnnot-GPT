@@ -10,6 +10,11 @@ from pathlib import Path
 from typing import Any, cast
 
 from jsonschema import Draft202012Validator
+try:  # structlog is optional in certain environments (e.g., tests)
+    from structlog.contextvars import get_contextvars
+except ImportError:  # pragma: no cover - fallback when structlog not available
+    def get_contextvars() -> dict[str, Any]:  # type: ignore[name-defined]
+        return {}
 from openai import OpenAI
 
 from backend.llm import prompts
@@ -326,14 +331,38 @@ class Annotator:
             raise SchemaValidationError("Annotation payload must be an object.")
         errors = sorted(self._annotation_validator.iter_errors(payload), key=lambda err: err.path)
         if errors:
-            raise SchemaValidationError(errors[0].message)
+            first = errors[0]
+            context = get_contextvars()
+            trace_id = context.get("trace_id")
+            logger.error(
+                "annotation.schema_validation_failed",
+                extra={
+                    "error": first.message,
+                    "path": list(first.path),
+                    "schema_path": list(first.schema_path),
+                    "trace_id": trace_id,
+                },
+            )
+            raise SchemaValidationError(first.message)
 
     def _validate_batch_payload(self, payload: dict[str, Any]) -> None:
         if not isinstance(payload, dict):
             raise SchemaValidationError("Batch payload must be an object mapping cluster IDs.")
         errors = sorted(self._batch_validator.iter_errors(payload), key=lambda err: err.path)
         if errors:
-            raise SchemaValidationError(errors[0].message)
+            first = errors[0]
+            context = get_contextvars()
+            trace_id = context.get("trace_id")
+            logger.error(
+                "annotation.batch_schema_validation_failed",
+                extra={
+                    "error": first.message,
+                    "path": list(first.path),
+                    "schema_path": list(first.schema_path),
+                    "trace_id": trace_id,
+                },
+            )
+            raise SchemaValidationError(first.message)
 
     @staticmethod
     def _append_warning(annotation: dict[str, Any], message: str) -> None:

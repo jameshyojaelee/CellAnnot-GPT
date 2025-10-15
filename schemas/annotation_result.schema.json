@@ -28,7 +28,7 @@
           "cluster_id": {"type": "string"},
           "annotation": {
             "type": "object",
-            "required": ["primary_label", "confidence", "rationale"],
+            "required": ["primary_label", "confidence", "rationale", "ontology_id", "markers"],
             "properties": {
               "cluster_id": {"type": ["string", "null"]},
               "primary_label": {"type": "string"},

@@ -1,243 +1,236 @@
-"""Run benchmark datasets, track deltas, and persist reports."""
+#!/usr/bin/env python3
+"""Run GPT Cell Annotator benchmarks against curated marker datasets."""
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
-import shutil
-from collections.abc import Iterable
+import logging
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Iterable
+
+import pandas as pd
 
 from backend.llm.annotator import Annotator
-from config.settings import get_settings
-from evaluation.benchmark_runner import load_and_run
-from evaluation.report_templates import (
-    render_markdown_report,
-    render_sparkline_csv,
-    render_text_confusion_matrix,
+from backend.llm.annotator import MockAnnotator
+from config.settings import Settings
+from evaluation.benchmark_runner import (
+    BenchmarkResult,
+    load_dataset,
+    run_gpt_benchmark,
+    run_marker_overlap_baseline,
 )
+from evaluation.plots import (
+    plot_calibration,
+    plot_confusion_matrix,
+    plot_precision_recall_bars,
+)
+from evaluation.report_templates import render_dataset_report
 
-BENCHMARK_REGRESSION_THRESHOLD = 0.05  # 5 percentage points
+logger = logging.getLogger("gpt_cell_annotator.benchmarks")
 
 
-def discover_datasets(directory: Path, patterns: Iterable[str] | None = None) -> list[Path]:
-    if not patterns:
-        return sorted(p for p in directory.glob("*.json") if p.is_file())
+def _discover_datasets(dataset_dir: Path, filters: set[str] | None) -> list[Path]:
+    datasets = sorted(dataset_dir.glob("*.json"))
+    if filters:
+        datasets = [
+            path for path in datasets if path.stem in filters or path.name in filters
+        ]
+    return datasets
 
-    resolved: dict[Path, None] = {}
-    for pattern in patterns:
-        candidate = Path(pattern)
-        matches: list[Path] = []
-        if candidate.is_absolute():
-            matches = sorted(p for p in candidate.parent.glob(candidate.name) if p.is_file())
-        else:
-            direct = directory / candidate
-            if direct.exists():
-                matches = [direct]
-            else:
-                matches = sorted(p for p in directory.glob(pattern) if p.is_file())
-        for match in matches:
-            resolved[match.resolve()] = None
-    return sorted(Path(path) for path in resolved.keys())
+
+def _load_marker_db(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Marker DB not found at {path}. Run scripts/build_marker_db.py first."
+        )
+    df = pd.read_parquet(path)
+    required_columns = {
+        "cell_type",
+        "gene_symbol",
+        "species",
+        "tissue",
+        "ontology_id",
+    }
+    missing = required_columns - set(df.columns)
+    if missing:
+        raise ValueError(f"Marker DB missing columns: {', '.join(sorted(missing))}")
+    return df
+
+
+def _result_to_dict(result: BenchmarkResult) -> dict:
+    data = asdict(result)
+    data["per_class"] = {label: metrics for label, metrics in result.per_class.items()}
+    return data
+
+
+def _write_model_outputs(
+    dataset_dir: Path,
+    result: BenchmarkResult,
+) -> None:
+    model_dir = dataset_dir / result.model_name
+    model_dir.mkdir(parents=True, exist_ok=True)
+    json_path = model_dir / "metrics.json"
+    json_path.write_text(json.dumps(_result_to_dict(result), indent=2), encoding="utf-8")
+
+    predictions_path = model_dir / "predictions.json"
+    predictions_path.write_text(json.dumps(result.predictions, indent=2), encoding="utf-8")
+
+    predictions = result.predictions
+    if predictions:
+        plot_confusion_matrix(predictions, model_dir / "confusion_matrix.png")
+        plot_precision_recall_bars(result.per_class, model_dir / "precision_recall.png")
+        plot_calibration(predictions, model_dir / "calibration.png")
+
+
+def _build_dataset_summary(dataset_name: str, model_results: Iterable[BenchmarkResult]) -> dict:
+    return {
+        "dataset": dataset_name,
+        "models": [
+            {
+                **_result_to_dict(result),
+            }
+            for result in model_results
+        ],
+    }
+
+
+def run_benchmarks(
+    datasets: Iterable[Path],
+    *,
+    output_dir: Path,
+    marker_db: pd.DataFrame,
+    use_mock: bool,
+    baselines: list[str],
+) -> list[dict]:
+    settings = Settings()
+    if use_mock:
+        settings.openai_api_key = ""
+    annotator = Annotator(settings=settings, mock_backend=MockAnnotator())
+
+    run_id = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+    out_root = output_dir / run_id
+    out_root.mkdir(parents=True, exist_ok=True)
+
+    dataset_summaries: list[dict] = []
+
+    for dataset_path in datasets:
+        dataset = load_dataset(dataset_path)
+        dataset_name = dataset.get("dataset_name", dataset_path.stem)
+        logger.info("Running dataset %s", dataset_name)
+
+        dataset_dir = out_root / dataset_name
+        dataset_dir.mkdir(parents=True, exist_ok=True)
+
+        model_results: list[BenchmarkResult] = []
+        gpt_result = run_gpt_benchmark(dataset, annotator, marker_db)
+        model_results.append(gpt_result)
+        _write_model_outputs(dataset_dir, gpt_result)
+
+        if "marker_overlap" in baselines:
+            baseline = run_marker_overlap_baseline(dataset, marker_db)
+            model_results.append(baseline)
+            _write_model_outputs(dataset_dir, baseline)
+
+        dataset_summary = _build_dataset_summary(dataset_name, model_results)
+        dataset_summaries.append(dataset_summary)
+
+        markdown = render_dataset_report(dataset_summary)
+        (dataset_dir / "README.md").write_text(markdown, encoding="utf-8")
+
+    summary_path = out_root / "summary.json"
+    summary_path.write_text(json.dumps(dataset_summaries, indent=2), encoding="utf-8")
+
+    history_csv = out_root / "history.csv"
+    history_rows = []
+    for summary in dataset_summaries:
+        for model in summary["models"]:
+            history_rows.append(
+                {
+                    "dataset": summary["dataset"],
+                    "model": model["model_name"],
+                    "date": run_id,
+                    "accuracy": model["accuracy"],
+                    "macro_f1": model["macro_f1"],
+                }
+            )
+    pd.DataFrame(history_rows).to_csv(history_csv, index=False)
+
+    logger.info("Reports written to %s", out_root)
+    return dataset_summaries
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run GPT Cell Annotator benchmarks")
-    parser.add_argument(
-        "--datasets-dir",
-        type=Path,
-        default=Path("evaluation/datasets"),
-        help="Directory containing benchmark JSON configs.",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=Path("docs/reports"),
-        help="Directory where reports will be stored.",
-    )
+    parser = argparse.ArgumentParser(description="Benchmark GPT Cell Annotator.")
     parser.add_argument(
         "--datasets",
-        nargs="*",
-        help="Specific dataset filenames or glob patterns (defaults to all *.json in directory).",
+        help="Comma-separated dataset names (defaults to all JSON files in evaluation/datasets/).",
+    )
+    parser.add_argument(
+        "--dataset-dir",
+        default="evaluation/datasets",
+        type=Path,
+        help="Directory containing dataset metadata JSON files.",
+    )
+    parser.add_argument(
+        "--output",
+        default="docs/reports",
+        type=Path,
+        help="Directory where benchmark reports will be written.",
+    )
+    parser.add_argument(
+        "--marker-db",
+        default="data/processed/marker_db.parquet",
+        type=Path,
+        help="Path to marker knowledge base parquet artifact.",
+    )
+    parser.add_argument(
+        "--baselines",
+        default="marker_overlap",
+        help="Comma-separated baselines to run (marker_overlap).",
     )
     parser.add_argument(
         "--mock",
         action="store_true",
-        help="Force annotator into mock mode by clearing OPENAI_API_KEY.",
+        help="Force mock annotator (offline mode).",
+    )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        help="Logging level (DEBUG, INFO, WARNING, ERROR).",
     )
     return parser.parse_args()
 
 
-def load_previous_metrics(previous_dir: Path, dataset_name: str) -> dict[str, float | None] | None:
-    previous_file = previous_dir / f"{dataset_name}.json"
-    if not previous_file.exists():
-        return None
-    try:
-        with previous_file.open("r", encoding="utf-8") as fh:
-            data = json.load(fh)
-        previous_accuracy = data.get("accuracy")
-        previous_macro = data.get("macro_f1")
-        return {
-            "accuracy": float(previous_accuracy) if previous_accuracy is not None else None,
-            "macro_f1": float(previous_macro) if previous_macro is not None else None,
-            "run_date": data.get("run_date"),
-        }
-    except json.JSONDecodeError:
-        return None
-
-
-def write_outputs(
-    output_prefix: Path,
-    dataset_name: str,
-    payload: dict[str, Any],
-    deltas: dict[str, float | None],
-    history: list[dict[str, float]],
-) -> None:
-    output_prefix.with_suffix(".json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
-    markdown_payload = render_markdown_report(
-        payload,
-        deltas=deltas,
-        regression_threshold=BENCHMARK_REGRESSION_THRESHOLD,
-    )
-    markdown_payload += "\n\n" + render_text_confusion_matrix(payload)
-    output_prefix.with_suffix(".md").write_text(markdown_payload, encoding="utf-8")
-
-    sparkline_csv = render_sparkline_csv(dataset_name, history)
-    output_prefix.with_suffix(".csv").write_text(sparkline_csv, encoding="utf-8")
-
-
-def update_latest_dir(
-    latest_dir: Path,
-    timestamp_dir: Path,
-    dataset_names: Iterable[str],
-    summary_files: Iterable[Path],
-) -> None:
-    if latest_dir.exists():
-        shutil.rmtree(latest_dir)
-    latest_dir.mkdir(parents=True, exist_ok=True)
-
-    for dataset in dataset_names:
-        for suffix in (".json", ".md", ".csv"):
-            src = (timestamp_dir / dataset).with_suffix(suffix)
-            if src.exists():
-                shutil.copy2(src, latest_dir / f"{dataset}{suffix}")
-
-    for summary in summary_files:
-        if summary.exists():
-            shutil.copy2(summary, latest_dir / summary.name)
-
-
-def run() -> None:
+def main() -> int:
     args = parse_args()
-    datasets = discover_datasets(args.datasets_dir, args.datasets)
-    if not datasets:
-        raise SystemExit("No benchmark datasets found.")
+    logging.basicConfig(level=getattr(logging, args.log_level.upper(), logging.INFO))
 
-    settings = get_settings()
-    if args.mock:
-        settings.openai_api_key = ""
-    annotator = Annotator(settings=settings)
+    filters = set(filter(None, (args.datasets or "").split(","))) if args.datasets else None
+    dataset_dir: Path = args.dataset_dir
+    dataset_paths = _discover_datasets(dataset_dir, filters)
+    if not dataset_paths:
+        logger.error("No datasets found in %s", dataset_dir)
+        return 1
 
-    timestamp = datetime.utcnow().strftime("%Y%m%d")
-    base_output = args.output_dir / timestamp
-    base_output.mkdir(parents=True, exist_ok=True)
+    try:
+        marker_db = _load_marker_db(args.marker_db)
+    except (FileNotFoundError, ValueError) as exc:
+        logger.error("Marker DB error: %s", exc)
+        return 1
 
-    latest_dir = args.output_dir / "latest"
-    diff_summary: dict[str, dict[str, float | None]] = {}
-    regressions: list[str] = []
-
-    for dataset_path in datasets:
-        dataset_name = dataset_path.stem
-        result = load_and_run(dataset_path, annotator)
-
-        previous = load_previous_metrics(latest_dir, dataset_name)
-        prev_accuracy = previous.get("accuracy") if previous else None
-        prev_macro = previous.get("macro_f1") if previous else None
-
-        if prev_accuracy is not None:
-            accuracy_delta = result.accuracy - prev_accuracy
-        else:
-            accuracy_delta = None
-        if prev_macro is not None:
-            macro_f1_delta = result.macro_f1 - prev_macro
-        else:
-            macro_f1_delta = None
-
-        json_payload = {
-            "dataset": dataset_name,
-            "run_date": timestamp,
-            "accuracy": result.accuracy,
-            "macro_f1": result.macro_f1,
-            "per_class": result.per_class,
-            "predictions": result.predictions,
-            "baseline": previous,
-            "delta": {
-                "accuracy": accuracy_delta,
-                "macro_f1": macro_f1_delta,
-            },
-        }
-        output_prefix = base_output / dataset_name
-
-        history = []
-        if prev_accuracy is not None and prev_macro is not None:
-            history.append(
-                {
-                    "date": previous.get("run_date", "previous") if previous else "previous",
-                    "accuracy": prev_accuracy,
-                    "macro_f1": prev_macro,
-                }
-            )
-        history.append(
-            {
-                "date": timestamp,
-                "accuracy": result.accuracy,
-                "macro_f1": result.macro_f1,
-            }
-        )
-
-        write_outputs(
-            output_prefix,
-            dataset_name,
-            json_payload,
-            {"accuracy": accuracy_delta, "macro_f1": macro_f1_delta},
-            history,
-        )
-
-        diff_summary[dataset_name] = {
-            "accuracy": result.accuracy,
-            "macro_f1": result.macro_f1,
-            "accuracy_delta": accuracy_delta,
-            "macro_f1_delta": macro_f1_delta,
-        }
-
-        if accuracy_delta is not None and accuracy_delta <= -BENCHMARK_REGRESSION_THRESHOLD:
-            regressions.append(dataset_name)
-
-        accuracy_msg = f"{result.accuracy:.2%}"
-        if accuracy_delta is not None:
-            accuracy_msg += f" (Δ {accuracy_delta:+.2%})"
-
-        macro_msg = f"{result.macro_f1:.2%}"
-        if macro_f1_delta is not None:
-            macro_msg += f" (Δ {macro_f1_delta:+.2%})"
-
-        print(f"[benchmarks] {dataset_name}: accuracy {accuracy_msg}, macro_f1 {macro_msg}")
-
-    diff_summary_path = base_output / "diff_summary.json"
-    diff_summary_path.write_text(json.dumps(diff_summary, indent=2), encoding="utf-8")
-
-    summary_paths = [diff_summary_path]
-    dataset_names = [path.stem for path in datasets]
-    update_latest_dir(latest_dir, base_output, dataset_names, summary_paths)
-
-    allow_regressions = os.getenv("ALLOW_BENCHMARK_REGRESSIONS", "").lower() == "true"
-    if regressions and not allow_regressions:
-        raise SystemExit(f"Accuracy regressions detected (>5% drop): {', '.join(regressions)}")
+    baselines = [item.strip() for item in args.baselines.split(",") if item.strip()]
+    run_benchmarks(
+        dataset_paths,
+        output_dir=args.output,
+        marker_db=marker_db,
+        use_mock=args.mock,
+        baselines=baselines,
+    )
+    return 0
 
 
 if __name__ == "__main__":
-    run()
+    raise SystemExit(main())

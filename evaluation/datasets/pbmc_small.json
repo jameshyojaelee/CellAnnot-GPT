@@ -1,5 +1,8 @@
 {
   "dataset_name": "pbmc_small",
+  "license": "CC BY 4.0",
+  "citation": "10x Genomics PBMC 3k dataset.",
+  "notes": "Toy subset capturing lymphoid vs T-cell markers.",
   "dataset_context": {
     "species": "Homo sapiens",
     "tissue": "Peripheral blood"

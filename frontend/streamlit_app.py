@@ -286,16 +286,19 @@ def page_review_results() -> None:
         )
         st.altair_chart(reason_chart.interactive(), use_container_width=True)
 
-    records = [
-        {
-            "cluster_id": cluster["cluster_id"],
-            "primary_label": cluster.get("annotation", {}).get("primary_label"),
-            "status": cluster.get("status"),
-            "confidence": cluster.get("confidence"),
-            "warnings": " | ".join(cluster.get("warnings", [])),
-        }
-        for cluster in clusters
-    ]
+    records = []
+    for cluster in clusters:
+        annotation = cluster.get("annotation", {})
+        records.append(
+            {
+                "cluster_id": cluster["cluster_id"],
+                "primary_label": annotation.get("primary_label"),
+                "proposed_label": annotation.get("proposed_label"),
+                "status": cluster.get("status"),
+                "confidence": cluster.get("confidence"),
+                "warnings": " | ".join(cluster.get("warnings", [])),
+            }
+        )
     csv_data = pd.DataFrame(records).to_csv(index=False).encode("utf-8")
     json_data = json.dumps(report, indent=2).encode("utf-8")
     pdf_data = _build_pdf_report(report)
@@ -329,6 +332,7 @@ def page_review_results() -> None:
         cluster_id = cluster["cluster_id"]
         annotation = cluster.get("annotation", {})
         primary_label = annotation.get("primary_label", "Unknown")
+        proposed_label = annotation.get("proposed_label")
         markers = annotation.get("markers", [])
         warnings = cluster.get("warnings", [])
         validation = cluster.get("validation")
@@ -337,8 +341,12 @@ def page_review_results() -> None:
         highlights = collect_marker_highlights(cluster)
         call_to_action = build_call_to_action(cluster)
 
+        title_label = primary_label
+        if proposed_label and proposed_label != primary_label:
+            title_label = f"{primary_label} ← proposed {proposed_label}"
+
         with st.expander(
-            f"Cluster {cluster_id} → {primary_label} ({status})",
+            f"Cluster {cluster_id} → {title_label} ({status})",
             expanded=status != "Supported",
         ):
             if markers:
@@ -348,6 +356,8 @@ def page_review_results() -> None:
                 )
             if confidence:
                 st.markdown(f"**Confidence:** {confidence}")
+            if proposed_label and proposed_label != primary_label:
+                st.markdown(f"**Original suggestion:** {proposed_label}")
             if warnings:
                 st.warning("\n".join(warnings))
             else:

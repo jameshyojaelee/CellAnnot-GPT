@@ -16,6 +16,7 @@ from anndata import AnnData
 from backend.llm.annotator import Annotator
 from backend.validation.crosscheck import crosscheck_batch
 from backend.validation.report import DatasetReport, build_structured_report
+from config.settings import get_settings
 
 try:  # Optional dependency; only needed when we must compute marker rankings.
     import scanpy as sc
@@ -71,8 +72,9 @@ def _extract_markers(adata: AnnData, cluster_key: str, top_n_markers: int) -> di
     rankings = adata.uns.get("rank_genes_groups")
     if rankings is None or "names" not in rankings:
         raise ValueError(
-            f"AnnData object is missing `rank_genes_groups` results for cluster key '{cluster_key}'. "
-            "Run scanpy.tl.rank_genes_groups beforehand or allow annotate_anndata to compute them."
+            "AnnData object is missing `rank_genes_groups` results for cluster key "
+            f"'{cluster_key}'. Run scanpy.tl.rank_genes_groups beforehand or allow "
+            "annotate_anndata to compute them."
         )
 
     names = rankings["names"]
@@ -166,6 +168,7 @@ def annotate_anndata(
         marker_df,
         species=species,
         tissue=tissue,
+        min_support=get_settings().validation_min_marker_overlap,
     )
     report_model: DatasetReport = build_structured_report(annotations, crosschecked)
     report = report_model.model_dump()
@@ -175,13 +178,15 @@ def annotate_anndata(
     status_col = f"{result_prefix}_status"
     rationale_col = f"{result_prefix}_rationale"
     ontology_col = f"{result_prefix}_ontology_id"
+    proposed_col = f"{result_prefix}_proposed_label"
 
     clusters_index = _build_cluster_index(adata.obs[cluster_key].astype(str))
-    adata.obs[label_col] = None
-    adata.obs[confidence_col] = None
-    adata.obs[status_col] = None
-    adata.obs[rationale_col] = None
-    adata.obs[ontology_col] = None
+    for column in [label_col, proposed_col, confidence_col, status_col, rationale_col, ontology_col]:
+        adata.obs[column] = pd.Series(
+            ["" for _ in range(adata.n_obs)],
+            index=adata.obs.index,
+            dtype="object",
+        )
 
     for cluster_report in report["clusters"]:
         cluster_id = str(cluster_report["cluster_id"])
@@ -192,12 +197,14 @@ def annotate_anndata(
         status = cluster_report.get("status")
         rationale = annotation.get("rationale")
         ontology = annotation.get("ontology_id")
+        proposed_label = annotation.get("proposed_label")
         for obs_idx in obs_indices:
-            adata.obs.at[obs_idx, label_col] = label
-            adata.obs.at[obs_idx, confidence_col] = confidence
-            adata.obs.at[obs_idx, status_col] = status
-            adata.obs.at[obs_idx, rationale_col] = rationale
-            adata.obs.at[obs_idx, ontology_col] = ontology
+            adata.obs.at[obs_idx, label_col] = (label or "")
+            adata.obs.at[obs_idx, proposed_col] = (proposed_label or "")
+            adata.obs.at[obs_idx, confidence_col] = (confidence or "")
+            adata.obs.at[obs_idx, status_col] = (status or "")
+            adata.obs.at[obs_idx, rationale_col] = (rationale or "")
+            adata.obs.at[obs_idx, ontology_col] = (ontology or "")
 
     return adata, report
 

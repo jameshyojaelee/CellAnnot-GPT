@@ -1,0 +1,27 @@
+{
+  "dataset_name": "brain_cortex_small",
+  "license": "CC BY 4.0",
+  "citation": "Darmanis et al. 2015, Single-cell RNA-Seq analysis of the human cortex.",
+  "notes": "Markers selected from canonical inhibitory vs excitatory neuron gene sets.",
+  "dataset_context": {
+    "species": "Homo sapiens",
+    "tissue": "Cortex"
+  },
+  "clusters": [
+    {
+      "cluster_id": "0",
+      "ground_truth": "Inhibitory neuron",
+      "markers": ["GAD1", "GAD2", "SLC6A1", "DLX1"]
+    },
+    {
+      "cluster_id": "1",
+      "ground_truth": "Excitatory neuron",
+      "markers": ["SLC17A7", "CAMK2A", "VGLUT1", "SATB2"]
+    },
+    {
+      "cluster_id": "2",
+      "ground_truth": "Astrocyte",
+      "markers": ["GFAP", "AQP4", "ALDH1L1", "SLC1A3"]
+    }
+  ]
+}

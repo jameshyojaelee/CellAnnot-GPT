@@ -1,0 +1,27 @@
+{
+  "dataset_name": "lung_epithelial_small",
+  "license": "CC BY 4.0",
+  "citation": "Travaglini et al. 2020, A molecular cell atlas of the human lung.",
+  "notes": "Markers drawn from airway epithelial annotations (AT2, Club, Basal).",
+  "dataset_context": {
+    "species": "Homo sapiens",
+    "tissue": "Lung"
+  },
+  "clusters": [
+    {
+      "cluster_id": "0",
+      "ground_truth": "AT2 cell",
+      "markers": ["SFTPC", "SFTPB", "SLC34A2", "NAPSA"]
+    },
+    {
+      "cluster_id": "1",
+      "ground_truth": "Club cell",
+      "markers": ["SCGB1A1", "SCGB3A1", "CYP2F1", "MUC1"]
+    },
+    {
+      "cluster_id": "2",
+      "ground_truth": "Basal cell",
+      "markers": ["KRT5", "KRT15", "TP63", "KRT17"]
+    }
+  ]
+}

@@ -23,7 +23,7 @@ class _DummyOpenAI:
 sys.modules.setdefault("openai", SimpleNamespace(OpenAI=_DummyOpenAI))
 
 from backend.llm.annotator import Annotator
-from config.settings import Settings
+from config.settings import Settings, get_settings
 from gpt_cell_annotator.scanpy import (
     MARKER_DB_COLUMNS,
     annotate_anndata,
@@ -75,6 +75,8 @@ def _build_adata() -> ad.AnnData:
 
 
 def test_annotate_anndata_adds_columns(monkeypatch):
+    settings = get_settings()
+    settings.validation_min_marker_overlap = 1
     adata = _build_adata()
     marker_db = _build_mock_marker_db()
     settings = Settings(openai_api_key="", openai_requests_per_minute=0)
@@ -89,6 +91,7 @@ def test_annotate_anndata_adds_columns(monkeypatch):
     )
 
     assert "gptca_label" in updated.obs.columns
+    assert "gptca_proposed_label" in updated.obs.columns
     labels = {label for label in updated.obs["gptca_label"] if label}
     assert labels  # at least one label populated
     allowed = {
@@ -107,6 +110,8 @@ def test_annotate_anndata_adds_columns(monkeypatch):
 
 
 def test_cli_roundtrip(tmp_path: Path, monkeypatch):
+    settings = get_settings()
+    settings.validation_min_marker_overlap = 1
     adata = _build_adata()
     input_path = tmp_path / "demo.h5ad"
     adata.write(input_path)
@@ -142,5 +147,6 @@ def test_cli_roundtrip(tmp_path: Path, monkeypatch):
     assert exit_code == 0
     annotated = ad.read_h5ad(output_path)
     assert "gptca_label" in annotated.obs.columns
+    assert "gptca_proposed_label" in annotated.obs.columns
     assert summary_csv.exists()
     assert summary_json.exists()

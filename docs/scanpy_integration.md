@@ -39,6 +39,7 @@ The helper automatically:
    - `gptca_status`
    - `gptca_rationale`
    - `gptca_ontology_id`
+   - `gptca_proposed_label` (original suggestion when validation overrides the call)
 4. Returns the updated `AnnData` and a structured report identical to the REST API payload.
 
 ### Configuration pointers

@@ -24,3 +24,10 @@
 - Integrate OpenTelemetry SDK for distributed traces.
 - Add SLO dashboards (Grafana) fed by metrics and logs.
 - Automate synthetic probes to verify health endpoints.
+
+## Quality & Validation
+- **Marker overlap threshold:** set `VALIDATION_MIN_MARKER_OVERLAP` (defaults to 2) to require a minimum number of shared markers before a label is considered supported. Failing clusters are automatically downgraded to `Unknown or Novel` when `VALIDATION_FORCE_UNKNOWN_ON_FAIL` is left enabled.
+- **Confidence calibration:** confidence bands are recalculated from marker overlap counts using `CONFIDENCE_OVERLAP_MEDIUM` / `CONFIDENCE_OVERLAP_HIGH`. Overly optimistic LLM scores are downgraded based on these thresholds.
+- **Flag reasons:** validation output includes machine- and human-readable reasons such as `low_marker_overlap`, `species_mismatch`, and `missing_ontology_id`. The UI surfaces these reasons and metrics under “Flagged reasons”.
+- **Original suggestions:** when a cluster is flagged, the report retains `annotation.proposed_label` alongside the downgraded `primary_label` so reviewers can still inspect the model’s initial suggestion.
+- **Schema enforcement:** the LLM response schema requires ontology identifiers and marker lists. Validation failures issue structured logs containing trace IDs for easier troubleshooting.

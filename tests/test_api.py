@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from backend.api import main
 from backend.api.main import app
+from config.settings import get_settings
 
 
 class DummyAnnotator:
@@ -57,6 +58,7 @@ def override_dependencies():
                 "tissue": "Blood",
                 "evidence": "",
                 "reference": "",
+                "evidence_score": "high",
             },
             {
                 "source": "PanglaoDB",
@@ -67,9 +69,13 @@ def override_dependencies():
                 "tissue": "Blood",
                 "evidence": "",
                 "reference": "",
+                "evidence_score": "high",
             },
         ]
     )
+
+    settings = get_settings()
+    settings.validation_min_marker_overlap = 1
 
     main.app.dependency_overrides[main.get_annotator] = lambda: annotator
     main.app.dependency_overrides[main.get_marker_db] = lambda: marker_db

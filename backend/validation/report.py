@@ -9,6 +9,51 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from backend.validation.crosscheck import CrosscheckResult
+from config.settings import get_settings
+
+FLAG_REASON_MESSAGES: dict[str, str] = {
+    "low_marker_overlap": "Low marker overlap with knowledge base markers.",
+    "contradictory_markers": "Markers contradict the proposed label.",
+    "ontology_mismatch": "Ontology identifier does not match knowledge base records.",
+    "label_not_in_kb": "Proposed label not found in marker knowledge base.",
+    "species_mismatch": "No marker records for the requested species.",
+    "tissue_mismatch": "No marker records for the requested tissue.",
+    "no_markers_supplied": "No markers were supplied for validation.",
+    "missing_ontology_id": "Ontology identifier missing from annotation payload.",
+    "validation_missing": "Validation result missing for this cluster.",
+}
+
+CONFIDENCE_ORDER = {"Low": 0, "Medium": 1, "High": 2}
+
+
+def _calibrate_confidence(original: str | None, support_count: int) -> str:
+    settings = get_settings()
+    medium_threshold = max(0, settings.confidence_overlap_medium)
+    high_threshold = max(medium_threshold, settings.confidence_overlap_high)
+
+    if support_count >= high_threshold > 0:
+        computed = "High"
+    elif support_count >= medium_threshold > 0:
+        computed = "Medium"
+    elif support_count > 0:
+        computed = "Low"
+    else:
+        computed = "Low"
+
+    if not original or original.lower() == "unknown":
+        return computed
+
+    original_norm = original.title()
+    if original_norm not in CONFIDENCE_ORDER:
+        return computed
+
+    computed_rank = CONFIDENCE_ORDER[computed]
+    original_rank = CONFIDENCE_ORDER[original_norm]
+    downgraded_rank = min(original_rank, computed_rank)
+    for level, rank in CONFIDENCE_ORDER.items():
+        if rank == downgraded_rank:
+            return level
+    return computed
 
 
 class ClusterReport(BaseModel):
@@ -57,48 +102,83 @@ def build_structured_report(
     unknown_clusters: list[str] = []
     reason_counts: Counter[str] = Counter()
     confidence_counts: Counter[str] = Counter()
+    settings = get_settings()
 
     for annotation in annotations:
         cluster_id = str(annotation.get("cluster_id", "unknown"))
         validation = crosscheck_results.get(cluster_id)
+        annotation_data = dict(annotation)
         warnings: list[str] = []
-        confidence = (annotation.get("confidence") or "Unknown").title()
-        confidence_counts[confidence] += 1
+
+        support_count = validation.support_count if validation else 0
+        calibrated_confidence = _calibrate_confidence(
+            annotation_data.get("confidence"),
+            support_count,
+        )
 
         status = "supported"
-        if validation:
-            if validation.is_supported:
-                supported += 1
-            else:
-                status = "flagged"
-                flagged += 1
-            if validation.ontology_mismatch:
-                warnings.append("Ontology mismatch between annotation and DB")
-                reason_counts["ontology_mismatch"] += 1
-            if validation.contradictory_markers:
-                markers = ", ".join(validation.contradictory_markers.keys())
-                warnings.append(f"Contradictory markers: {markers}")
-                reason_counts["contradictory_markers"] += 1
-            if validation.notes:
-                warnings.extend(validation.notes)
-                reason_counts["notes"] += len(validation.notes)
+        if validation and validation.is_supported:
+            supported += 1
         else:
             status = "flagged"
             flagged += 1
-            warnings.append("Validation result missing")
-            reason_counts["validation_missing"] += 1
+            if settings.validation_force_unknown_on_fail:
+                if validation and "proposed_label" not in annotation_data:
+                    annotation_data["proposed_label"] = validation.primary_label
+                annotation_data["primary_label"] = "Unknown or Novel"
+                annotation_data["ontology_id"] = None
+            calibrated_confidence = "Low"
 
-        if annotation.get("primary_label") in (None, "", "Unknown", "Unknown or Novel"):
+        annotation_data["confidence"] = calibrated_confidence
+        if validation:
+            for reason in validation.flag_reasons:
+                reason_counts[reason] += 1
+                base_message = FLAG_REASON_MESSAGES.get(reason, reason.replace("_", " ").title())
+                if base_message:
+                    warnings.append(base_message)
+                if reason == "contradictory_markers" and validation.contradictory_markers:
+                    markers = ", ".join(validation.contradictory_markers.keys())
+                    warnings.append(f"Contradictory markers: {markers}")
+                if reason == "low_marker_overlap":
+                    warnings.append(
+                        f"Only {validation.support_count} marker(s) overlap with knowledge base "
+                        f"(minimum {max(settings.validation_min_marker_overlap, 1)} required)."
+                    )
+
+            if validation.notes:
+                for note in validation.notes:
+                    if note not in warnings:
+                        warnings.append(note)
+        else:
+            reason_counts["validation_missing"] += 1
+            warnings.append(FLAG_REASON_MESSAGES["validation_missing"])
+            if settings.validation_force_unknown_on_fail:
+                annotation_data["primary_label"] = "Unknown or Novel"
+                annotation_data["ontology_id"] = None
+
+        # Deduplicate warnings while preserving order.
+        deduped_warnings: list[str] = []
+        seen_warnings: set[str] = set()
+        for warning in warnings:
+            if warning and warning not in seen_warnings:
+                deduped_warnings.append(warning)
+                seen_warnings.add(warning)
+
+        if annotation_data.get("primary_label") in (None, "", "Unknown", "Unknown or Novel"):
             unknown_clusters.append(cluster_id)
+
+        confidence_label = (annotation_data.get("confidence") or "Unknown").title()
+        annotation_data["confidence"] = confidence_label
+        confidence_counts[confidence_label] += 1
 
         clusters.append(
             ClusterReport(
                 cluster_id=cluster_id,
-                annotation=annotation,
+                annotation=annotation_data,
                 validation=validation.to_dict() if validation else None,
-                warnings=warnings,
+                warnings=deduped_warnings,
                 status=status,
-                confidence=confidence,
+                confidence=annotation_data["confidence"],
             )
         )
 
