@@ -1,4 +1,4 @@
-# CellAnnot-GPT Benchmark Report
+# GPT Cell Annotator Benchmark Report
 
 - Accuracy: 50.00%
 - Macro F1: 33.33%

@@ -1,4 +1,4 @@
-# Benchmarking CellAnnot-GPT
+# Benchmarking GPT Cell Annotator
 
 This guide explains how to evaluate the annotator against curated datasets.
 
@@ -34,4 +34,3 @@ Outputs are written to `docs/reports/YYYYMMDD/<dataset>.{json,md}`.
 - Workflow `ci.yml` includes a scheduled job (`cron`) to run benchmarks nightly.
 - Reports are uploaded as GitHub Actions artifacts for auditing.
 - Ensure secrets (`OPENAI_API_KEY`) are configured in repository settings if running live mode.
-

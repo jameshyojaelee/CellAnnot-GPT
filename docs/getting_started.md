@@ -1,4 +1,4 @@
-# Getting Started with CellAnnot-GPT
+# Getting Started with GPT Cell Annotator
 
 Welcome! This guide walks you through setting up the development environment, running tests, and trying the core workflows.
 
@@ -10,8 +10,8 @@ Welcome! This guide walks you through setting up the development environment, ru
 ## 2. Environment Setup
 ```bash
 # Clone the repo
-git clone https://github.com/your-org/CellAnnot-GPT.git
-cd CellAnnot-GPT
+git clone https://github.com/your-org/GPT-cell-annotator.git
+cd GPT-cell-annotator
 
 # Install dependencies with Poetry
 poetry install

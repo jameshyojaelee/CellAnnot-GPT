@@ -2,7 +2,7 @@ sources:
   - name: PanglaoDB
     fmt: csv
     parser: panglaodb
-    url: https://raw.githubusercontent.com/your-org/CellAnnot-GPT/main/data/demo/panglaodb_demo.csv
+    url: https://raw.githubusercontent.com/your-org/GPT-cell-annotator/main/data/demo/panglaodb_demo.csv
     local_path: data/demo/panglaodb_demo.csv
     checksum: e2502e609dcb4d76ab197e7f19be941a86d59a8a7999edfca75fdd54ffdacd30
     checksum_algorithm: sha256
@@ -12,7 +12,7 @@ sources:
   - name: CellMarker
     fmt: csv
     parser: cellmarker
-    url: https://raw.githubusercontent.com/your-org/CellAnnot-GPT/main/data/demo/cellmarker_demo.csv
+    url: https://raw.githubusercontent.com/your-org/GPT-cell-annotator/main/data/demo/cellmarker_demo.csv
     local_path: data/demo/cellmarker_demo.csv
     checksum: 66a30e2ed67379acce2ac56013bcaf8e81d869102f8aeaf19099915a06b43e4a
     checksum_algorithm: sha256

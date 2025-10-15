@@ -19,7 +19,7 @@ def render_markdown_report(
     regression_threshold: float = 0.05,
 ) -> str:
     lines = [
-        "# CellAnnot-GPT Benchmark Report",
+        "# GPT Cell Annotator Benchmark Report",
         "",
         (
             f"- Accuracy: {result['accuracy']:.2%}"

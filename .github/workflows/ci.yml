@@ -41,7 +41,7 @@ jobs:
         run: poetry run pytest
 
       - name: Build Docker image
-        run: docker build -t cellannot-gpt-ci .
+        run: docker build -t gpt-cell-annotator-ci .
 
       - name: Log in to GHCR
         if: github.ref == 'refs/heads/main'
@@ -63,14 +63,14 @@ jobs:
             echo "GHCR_TOKEN not set; skipping push"
             exit 0
           fi
-          IMAGE=ghcr.io/${{ github.repository }}/cellannot-gpt:${{ github.sha }}
-          docker tag cellannot-gpt-ci "$IMAGE"
+          IMAGE=ghcr.io/${{ github.repository }}/gpt-cell-annotator:${{ github.sha }}
+          docker tag gpt-cell-annotator-ci "$IMAGE"
           docker push "$IMAGE"
 
       - name: Run Trivy scan
         uses: aquasecurity/trivy-action@0.13.0
         with:
-          image-ref: cellannot-gpt-ci
+          image-ref: gpt-cell-annotator-ci
           format: 'table'
           exit-code: '1'
           ignore-unfixed: true

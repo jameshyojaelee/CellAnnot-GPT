@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    """Central configuration for CellAnnot-GPT services."""
+    """Central configuration for GPT Cell Annotator services."""
 
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-4o-mini")

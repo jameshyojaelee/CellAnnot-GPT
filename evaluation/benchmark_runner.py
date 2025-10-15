@@ -1,4 +1,4 @@
-"""Benchmark utilities for evaluating CellAnnot-GPT annotations."""
+"""Benchmark utilities for evaluating GPT Cell Annotator annotations."""
 
 from __future__ import annotations
 

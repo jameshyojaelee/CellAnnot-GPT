@@ -136,5 +136,5 @@ def test_build_structured_report_and_render_text() -> None:
     assert "confidence_counts" in structured.metrics.model_dump()
 
     text = render_text_report(structured)
-    assert "CellAnnot-GPT Validation Report" in text
+    assert "GPT Cell Annotator Validation Report" in text
     assert "Unknown clusters" in text

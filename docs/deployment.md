@@ -1,6 +1,6 @@
 # Deployment Guide
 
-This document describes how to deploy CellAnnot-GPT across development, staging, and production environments, and how to manage runtime secrets securely.
+This document describes how to deploy GPT Cell Annotator across development, staging, and production environments, and how to manage runtime secrets securely.
 
 ## 1. Runtime Components
 - **API service** (`backend.api.main:app` via Uvicorn) – serves annotation endpoints.
@@ -13,7 +13,7 @@ Define the following environment variables:
 | Variable | Description | Required |
 | --- | --- | --- |
 | `OPENAI_API_KEY` | API key for OpenAI GPT-4o (or compatible model). | Yes (unless running fully offline) |
-| `CELLANNOT_DATA_DIR` | Directory containing `marker_db.parquet` / `marker_db.sqlite`. Defaults to `/data`. | Recommended |
+| `GPT_CELL_ANNOTATOR_DATA_DIR` | Directory containing `marker_db.parquet` / `marker_db.sqlite`. Defaults to `/data`. | Recommended |
 | `REDIS_URL` | Redis connection string if caching is enabled. | Optional |
 | `ENVIRONMENT` | One of `development`, `staging`, `production` – consumed by `config/settings.py`. | Optional |
 
@@ -36,21 +36,21 @@ ENVIRONMENT=development
 ## 4. Staging Deployment
 - Build and tag the image:
   ```bash
-  docker build -t ghcr.io/<org>/cellannot-gpt:<sha> .
+  docker build -t ghcr.io/<org>/gpt-cell-annotator:<sha> .
   ```
 - Push to your registry (GitHub Container Registry shown):
   ```bash
   echo "$CR_PAT" | docker login ghcr.io -u <user> --password-stdin
-  docker push ghcr.io/<org>/cellannot-gpt:<sha>
+  docker push ghcr.io/<org>/gpt-cell-annotator:<sha>
   ```
 - Provision staging infrastructure (e.g., a single VM or ECS task) and run the container:
   ```bash
-  docker run -d --name cellannot-staging \
+  docker run -d --name gpt-cell-annotator-staging \
     -e OPENAI_API_KEY=$OPENAI_API_KEY \
     -e ENVIRONMENT=staging \
-    -v /srv/cellannot/data:/data \
+    -v /srv/gpt-cell-annotator/data:/data \
     -p 8080:8000 \
-    ghcr.io/<org>/cellannot-gpt:<sha>
+    ghcr.io/<org>/gpt-cell-annotator:<sha>
   ```
 - Point staging Streamlit/clients to `http://host:8080`.
 

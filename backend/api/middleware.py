@@ -9,7 +9,7 @@ from collections.abc import Awaitable, Callable
 import structlog
 from fastapi import Request, Response
 
-logger = structlog.get_logger("cellannot.api")
+logger = structlog.get_logger("gpt_cell_annotator.api")
 
 
 async def logging_middleware(

@@ -1,4 +1,4 @@
-"""LLM-powered annotation engine for CellAnnot-GPT."""
+"""LLM-powered annotation engine for GPT Cell Annotator."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from openai import OpenAI
 from backend.llm import prompts
 from config.settings import Settings, get_settings
 
-logger = logging.getLogger("cellannot.llm")
+logger = logging.getLogger("gpt_cell_annotator.llm")
 
 
 class AnnotationError(RuntimeError):
@@ -262,7 +262,7 @@ class Annotator:
             raw = self._call_llm(
                 messages,
                 schema=self._annotation_schema,
-                schema_name="cellannot_annotation",
+                schema_name="gpt_cell_annotator_annotation",
             )
             result = self._parse_json(raw, context="annotate_cluster")
             self._validate_annotation_payload(result)
@@ -297,7 +297,7 @@ class Annotator:
             raw = self._call_llm(
                 messages,
                 schema=self._batch_schema,
-                schema_name="cellannot_batch",
+                schema_name="gpt_cell_annotator_batch",
             )
             result = self._parse_json(raw, context="annotate_batch")
             self._validate_batch_payload(result)

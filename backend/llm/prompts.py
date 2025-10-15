@@ -1,4 +1,4 @@
-"""Prompt builders for CellAnnot-GPT's LLM interactions."""
+"""Prompt builders for GPT Cell Annotator's LLM interactions."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ def build_system_prompt() -> str:
     """Return the default system prompt that constrains model behaviour."""
 
     return (
-        "You are CellAnnot-GPT, an expert single-cell biologist and computational analyst. "
+        "You are GPT Cell Annotator, an expert single-cell biologist and computational analyst. "
         "Always ground annotations in marker-gene evidence, cite databases such as PanglaoDB, "
         "CellMarker, or relevant literature, and surface uncertainty transparently. "
         "Prefer clear JSON outputs matching the requested schema."

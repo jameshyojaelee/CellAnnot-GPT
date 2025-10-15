@@ -33,7 +33,7 @@ import httpx
 import pandas as pd
 import yaml
 
-logger = logging.getLogger("cellannot.data_ingest")
+logger = logging.getLogger("gpt_cell_annotator.data_ingest")
 
 NORMALIZED_COLUMNS = [
     "source",

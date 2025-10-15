@@ -1,4 +1,4 @@
-"""CLI entry point for building the CellAnnot-GPT marker knowledge base."""
+"""CLI entry point for building the GPT Cell Annotator marker knowledge base."""
 
 from __future__ import annotations
 
@@ -78,9 +78,11 @@ def main() -> None:
             enforce_checksums=args.verify_checksums,
         )
     except SourceResolutionError as exc:
-        raise SystemExit(f"[cellannot] Unable to resolve any marker sources: {exc}") from exc
+        raise SystemExit(
+            f"[gpt-cell-annotator] Unable to resolve any marker sources: {exc}"
+        ) from exc
     except ChecksumMismatchError as exc:
-        raise SystemExit(f"[cellannot] Checksum verification failed: {exc}") from exc
+        raise SystemExit(f"[gpt-cell-annotator] Checksum verification failed: {exc}") from exc
 
     message = (
         f"Ingested {len(df)} marker records from {len(loader.sources)} sources "

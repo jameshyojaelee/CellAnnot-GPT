@@ -1,13 +1,13 @@
-# CellAnnot-GPT
+# GPT Cell Annotator
 
-CellAnnot-GPT is an AI assistant that annotates single-cell RNA-seq clusters by combining curated marker knowledge with a large language model. It delivers evidence-backed cell type suggestions, confidence scoring, and validation tooling that reduces manual labeling time from days to minutes.
+GPT Cell Annotator is an AI assistant that annotates single-cell RNA-seq clusters by combining curated marker knowledge with a large language model. It delivers evidence-backed cell type suggestions, confidence scoring, and validation tooling that reduces manual labeling time from days to minutes.
 
 ## Quick Start
 
 ```bash
 # Clone and enter repo
-git clone https://github.com/your-org/CellAnnot-GPT.git
-cd CellAnnot-GPT
+git clone https://github.com/your-org/GPT-cell-annotator.git
+cd GPT-cell-annotator
 
 # Set up environment (Poetry example)
 poetry install

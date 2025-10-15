@@ -1,7 +1,7 @@
 # Operations & Observability
 
 ## Logging
-- CellAnnot-GPT uses `structlog` to emit JSON logs enriched with `trace_id`, `method`, `path`, `status_code`, `duration_ms`. Each response includes `X-Trace-Id` and `X-Process-Time-ms` headers for correlation.
+- GPT Cell Annotator uses `structlog` to emit JSON logs enriched with `trace_id`, `method`, `path`, `status_code`, `duration_ms`. Each response includes `X-Trace-Id` and `X-Process-Time-ms` headers for correlation.
 - Tuning: set `LOG_LEVEL` (INFO, DEBUG, etc.) in environment configuration.
 
 ## Log Aggregation
@@ -24,4 +24,3 @@
 - Integrate OpenTelemetry SDK for distributed traces.
 - Add SLO dashboards (Grafana) fed by metrics and logs.
 - Automate synthetic probes to verify health endpoints.
-

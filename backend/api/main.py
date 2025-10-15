@@ -1,4 +1,4 @@
-"""FastAPI application exposing CellAnnot-GPT endpoints."""
+"""FastAPI application exposing GPT Cell Annotator endpoints."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from backend.validation.crosscheck import crosscheck_batch
 from backend.validation.report import build_structured_report
 from config.settings import get_settings
 
-logger = logging.getLogger("cellannot.api")
+logger = logging.getLogger("gpt_cell_annotator.api")
 settings = get_settings()
 _CACHE = create_cache_from_env(settings.redis_url)
 
@@ -53,7 +53,7 @@ def get_marker_db() -> pd.DataFrame:
         ) from exc
 
 
-app = FastAPI(title="CellAnnot-GPT API")
+app = FastAPI(title="GPT Cell Annotator API")
 app.middleware("http")(logging_middleware)
 
 

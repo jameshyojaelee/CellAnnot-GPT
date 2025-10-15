@@ -25,7 +25,7 @@ from frontend.utils import (
     status_badge,
 )
 
-st.set_page_config(page_title="CellAnnot-GPT", layout="wide")
+st.set_page_config(page_title="GPT Cell Annotator", layout="wide")
 
 
 def _ensure_session_state() -> None:
@@ -46,7 +46,7 @@ def _render_header(current_page: str, pages: list[str]) -> None:
         <div style="display:flex;align-items:center;justify-content:space-between;
         padding:0.5rem 0;">
           <div style="font-size:1.4rem;font-weight:700;color:#1F6FEB;">
-            CellAnnot-GPT Dashboard
+            GPT Cell Annotator Dashboard
           </div>
           <div style="font-size:0.9rem;color:#4F6170;">
             Know your cells in a single click
@@ -88,7 +88,7 @@ def _build_pdf_report(report: dict[str, Any]) -> bytes:
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "CellAnnot-GPT Batch Report", ln=1)
+    pdf.cell(0, 10, "GPT Cell Annotator Batch Report", ln=1)
 
     summary = report.get("summary", {})
     metrics = report.get("metrics", {})
@@ -304,19 +304,19 @@ def page_review_results() -> None:
     dl_col1.download_button(
         "⬇️ Download CSV",
         csv_data,
-        file_name="cellannot_report.csv",
+        file_name="gpt_cell_annotator_report.csv",
         mime="text/csv",
     )
     dl_col2.download_button(
         "⬇️ Download JSON",
         json_data,
-        file_name="cellannot_report.json",
+        file_name="gpt_cell_annotator_report.json",
         mime="application/json",
     )
     dl_col3.download_button(
         "⬇️ Download PDF",
         pdf_data,
-        file_name="cellannot_report.pdf",
+        file_name="gpt_cell_annotator_report.pdf",
         mime="application/pdf",
     )
 
@@ -605,7 +605,7 @@ def main() -> None:
         "Compare Batches",
         "Single Cluster",
     ]
-    st.sidebar.title("CellAnnot-GPT")
+    st.sidebar.title("GPT Cell Annotator")
     st.sidebar.markdown(
         "[Getting Started](docs/getting_started.md) · "
         "[API Reference](docs/api_reference.md) · "

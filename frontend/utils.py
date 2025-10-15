@@ -9,7 +9,7 @@ from typing import Any
 
 import requests
 
-API_BASE_URL = os.environ.get("CELLANNOT_API_URL", "http://127.0.0.1:8000")
+API_BASE_URL = os.environ.get("GPT_CELL_ANNOTATOR_API_URL", "http://127.0.0.1:8000")
 
 
 @functools.lru_cache(maxsize=32)

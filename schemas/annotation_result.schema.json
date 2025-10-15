@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cellannot-gpt.org/schemas/annotation_result.schema.json",
-  "title": "CellAnnotGPTAnnotationResult",
+  "$id": "https://gpt-cell-annotator.org/schemas/annotation_result.schema.json",
+  "title": "GPTCellAnnotatorAnnotationResult",
   "type": "object",
   "required": ["summary", "clusters"],
   "properties": {

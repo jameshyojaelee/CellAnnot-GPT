@@ -45,7 +45,7 @@ def discover_datasets(directory: Path, patterns: Iterable[str] | None = None) ->
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run CellAnnot-GPT benchmarks")
+    parser = argparse.ArgumentParser(description="Run GPT Cell Annotator benchmarks")
     parser.add_argument(
         "--datasets-dir",
         type=Path,

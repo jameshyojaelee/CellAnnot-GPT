@@ -3,7 +3,7 @@ requires = [ "poetry-core>=1.8.0",]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-name = "cellannot-gpt"
+name = "gpt-cell-annotator"
 version = "0.1.0"
 description = "AI assistant for annotating single-cell RNA-seq clusters using curated marker knowledge and LLM reasoning."
 authors = [ "Your Name <you@example.com>",]

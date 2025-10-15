@@ -1,4 +1,4 @@
-"""Request/response models for the CellAnnot-GPT API."""
+"""Request/response models for the GPT Cell Annotator API."""
 
 from __future__ import annotations
 

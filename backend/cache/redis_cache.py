@@ -13,13 +13,13 @@ try:
 except ImportError:  # pragma: no cover - optional dependency
     redis = None  # type: ignore
 
-logger = logging.getLogger("cellannot.cache")
+logger = logging.getLogger("gpt_cell_annotator.cache")
 
 
 @dataclass
 class CacheConfig:
     url: str
-    namespace: str = "cellannot"
+    namespace: str = "gpt_cell_annotator"
     ttl_seconds: int = 60 * 60
 
 

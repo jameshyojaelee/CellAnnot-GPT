@@ -126,7 +126,7 @@ def render_text_report(report: DatasetReport | dict[str, Any]) -> str:
 
     summary = dataset.summary
     lines = [
-        "CellAnnot-GPT Validation Report",
+        "GPT Cell Annotator Validation Report",
         "================================",
         f"Total clusters: {summary.total_clusters}",
         f"Supported: {summary.supported_clusters}",

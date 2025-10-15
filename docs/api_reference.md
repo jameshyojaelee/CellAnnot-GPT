@@ -1,6 +1,6 @@
 # API Reference
 
-CellAnnot-GPT exposes a FastAPI backend. Below is a summary of the main endpoints.
+GPT Cell Annotator exposes a FastAPI backend. Below is a summary of the main endpoints.
 
 ## `GET /health`
 - Returns service status, LLM mode (`live` or `mock`), and cache status.

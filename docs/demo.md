@@ -3,13 +3,13 @@
 ## 1. Script (3 minutes)
 
 **0:00 – Hook (30 sec)**  
-"Single-cell biologists spend days matching clusters to cell types by hand. With CellAnnot-GPT, we can do it in minutes, with evidence citations. Let me show you how our current build works."
+"Single-cell biologists spend days matching clusters to cell types by hand. With GPT Cell Annotator, we can do it in minutes, with evidence citations. Let me show you how our current build works."
 
 **0:30 – Setup (20 sec)**  
 "I've pre-computed marker genes for a PBMC dataset—standard practice after clustering in Scanpy. The backend API is running locally (`uvicorn backend.api.main:app`) and our Streamlit UI is connected to it."
 
 **0:50 – Upload & Context (30 sec)**  
-"First, I upload the CSV of clusters and markers. CellAnnot-GPT recognizes the structure and caches the data. I set the context to human blood to steer the ontology."
+"First, I upload the CSV of clusters and markers. GPT Cell Annotator recognizes the structure and caches the data. I set the context to human blood to steer the ontology."
 
 **1:20 – Batch Annotation (45 sec)**  
 "We hit ‘Batch Annotate’. Under the hood, the annotator crafts prompts for each cluster, calls GPT-4o, then cross-checks every suggestion against our marker database. Within seconds we have preliminary labels."  
@@ -27,7 +27,7 @@
 - **Call-to-action Panels:** The app suggests follow-up experiments and markers to validate, turning validation notes into a mini playbook.
 
 ### Watch the 90-second tour
-[Loom walkthrough of the upgraded dashboard](https://www.loom.com/share/your-cellannot-demo)  
+[Loom walkthrough of the upgraded dashboard](https://www.loom.com/share/your-gpt-cell-annotator-demo)  
 (Replace with the latest recording when available.)
 
 ## 2. Slide Outline
