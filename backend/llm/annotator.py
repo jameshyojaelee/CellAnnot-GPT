@@ -207,9 +207,7 @@ class Annotator:
 
     def _load_schemas(self) -> None:
         schema_path = (
-            Path(__file__).resolve().parents[2]
-            / "schemas"
-            / "annotation_result.schema.json"
+            Path(__file__).resolve().parents[2] / "schemas" / "annotation_result.schema.json"
         )
         try:
             with schema_path.open("r", encoding="utf-8") as fh:

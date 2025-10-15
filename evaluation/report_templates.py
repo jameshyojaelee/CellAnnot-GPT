@@ -62,10 +62,7 @@ def render_text_confusion_matrix(result: dict) -> str:
     matrix_lines = ["Confusion Matrix (rows=truth, cols=prediction)"]
     header = "\t".join([" ", *labels])
     matrix_lines.append(header)
-    counts = {
-        label: {label_name: 0 for label_name in labels}
-        for label in labels
-    }
+    counts = {label: {label_name: 0 for label_name in labels} for label in labels}
     for row in result["predictions"]:
         truth = row.get("ground_truth")
         pred = row.get("predicted")

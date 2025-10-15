@@ -241,9 +241,7 @@ def page_review_results() -> None:
         len(summary.get("unknown_clusters", [])),
         f"{metrics.get('unknown_rate', 0) * 100:.1f}%",
     )
-    col3.caption(
-        "Info: Clusters where the model suggested novel or uncertain identity."
-    )
+    col3.caption("Info: Clusters where the model suggested novel or uncertain identity.")
 
     chart_data = pd.DataFrame(
         [
@@ -261,10 +259,7 @@ def page_review_results() -> None:
     confidence_counts = metrics.get("confidence_counts", {})
     if confidence_counts:
         confidence_df = pd.DataFrame(
-            [
-                {"Confidence": level, "Count": count}
-                for level, count in confidence_counts.items()
-            ]
+            [{"Confidence": level, "Count": count} for level, count in confidence_counts.items()]
         )
         conf_chart = (
             alt.Chart(confidence_df)
@@ -598,6 +593,7 @@ def page_single_cluster() -> None:
         file_name="cluster_explanation.txt",
         mime="text/plain",
     )
+
 
 def main() -> None:
     _ensure_session_state()

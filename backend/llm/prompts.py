@@ -36,9 +36,7 @@ def build_single_cluster_prompt(
     stats = cluster_payload.get("stats") or {}
     stats_lines = "\\n".join(f"{key}: {value}" for key, value in stats.items())
     stats_block = (
-        f"Cluster stats:\\n{stats_lines}"
-        if stats_lines
-        else "Cluster stats: not provided."
+        f"Cluster stats:\\n{stats_lines}" if stats_lines else "Cluster stats: not provided."
     )
 
     cluster_id = cluster_payload.get("cluster_id", "unknown")

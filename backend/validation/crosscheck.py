@@ -104,9 +104,7 @@ def crosscheck_annotation(
     if target_df.empty:
         notes.append("Label absent from marker database")
 
-    is_supported = (
-        len(supporting) >= min_support and not contradictory and not ontology_mismatch
-    )
+    is_supported = len(supporting) >= min_support and not contradictory and not ontology_mismatch
 
     return CrosscheckResult(
         cluster_id=cluster_id,

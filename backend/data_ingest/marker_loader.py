@@ -196,9 +196,13 @@ def ensure_evidence_scores(df: pd.DataFrame) -> pd.DataFrame:
     if EVIDENCE_SCORE_COLUMN not in df.columns:
         df[EVIDENCE_SCORE_COLUMN] = df["evidence"].fillna("").map(classify_evidence_strength)
     else:
-        df[EVIDENCE_SCORE_COLUMN] = df[EVIDENCE_SCORE_COLUMN].fillna("").where(
-            df[EVIDENCE_SCORE_COLUMN].astype(bool),
-            df["evidence"].fillna("").map(classify_evidence_strength),
+        df[EVIDENCE_SCORE_COLUMN] = (
+            df[EVIDENCE_SCORE_COLUMN]
+            .fillna("")
+            .where(
+                df[EVIDENCE_SCORE_COLUMN].astype(bool),
+                df["evidence"].fillna("").map(classify_evidence_strength),
+            )
         )
     return df
 

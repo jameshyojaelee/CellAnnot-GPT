@@ -170,9 +170,7 @@ def build_call_to_action(cluster: dict[str, Any]) -> dict[str, list[str]]:
         )
 
     if not experiments:
-        experiments.append(
-            "Document validated markers and archive the run for traceability."
-        )
+        experiments.append("Document validated markers and archive the run for traceability.")
 
     dedup_markers = sorted({m.upper(): m for m in markers_to_validate}.values())
     return {

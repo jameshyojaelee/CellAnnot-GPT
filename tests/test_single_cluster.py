@@ -46,7 +46,7 @@ def test_build_report_for_single_cluster():
     "value,expected",
     [
         ("MS4A1, CD79A", ["MS4A1", "CD79A"]),
-        ("[\"MS4A1\", \"CD79A\"]", ["MS4A1", "CD79A"]),
+        ('["MS4A1", "CD79A"]', ["MS4A1", "CD79A"]),
         (["MS4A1", "CD79A"], ["MS4A1", "CD79A"]),
     ],
 )

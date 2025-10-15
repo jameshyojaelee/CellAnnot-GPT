@@ -78,9 +78,7 @@ async def annotate_cluster(
         annotator.llm_mode,
     )
     context_dict = (
-        payload.dataset_context.model_dump(exclude_none=True)
-        if payload.dataset_context
-        else {}
+        payload.dataset_context.model_dump(exclude_none=True) if payload.dataset_context else {}
     )
     cache_payload = {
         "type": "cluster",
@@ -101,9 +99,11 @@ async def annotate_cluster(
     try:
         result = annotator.annotate_cluster(
             payload.cluster.model_dump(),
-            payload.dataset_context.model_dump(exclude_none=True)
-            if payload.dataset_context
-            else None,
+            (
+                payload.dataset_context.model_dump(exclude_none=True)
+                if payload.dataset_context
+                else None
+            ),
         )
     except AnnotationError as exc:
         logger.exception("Annotation failed")
@@ -119,16 +119,8 @@ async def annotate_cluster(
         crosschecked = crosscheck_batch(
             [annotation_record],
             marker_db,
-            species=(
-                payload.dataset_context.species
-                if payload.dataset_context
-                else None
-            ),
-            tissue=(
-                payload.dataset_context.tissue
-                if payload.dataset_context
-                else None
-            ),
+            species=(payload.dataset_context.species if payload.dataset_context else None),
+            tissue=(payload.dataset_context.tissue if payload.dataset_context else None),
         )
         report_model = build_structured_report([annotation_record], crosschecked)
         report = report_model.model_dump()
@@ -155,9 +147,7 @@ async def annotate_batch(
         annotator.llm_mode,
     )
     context_dict = (
-        payload.dataset_context.model_dump(exclude_none=True)
-        if payload.dataset_context
-        else {}
+        payload.dataset_context.model_dump(exclude_none=True) if payload.dataset_context else {}
     )
     clusters_payload = [
         {"cluster_id": str(cluster.cluster_id), "markers": sorted(cluster.markers)}
@@ -182,9 +172,11 @@ async def annotate_batch(
     try:
         result = annotator.annotate_batch(
             [cluster.model_dump() for cluster in payload.clusters],
-            payload.dataset_context.model_dump(exclude_none=True)
-            if payload.dataset_context
-            else None,
+            (
+                payload.dataset_context.model_dump(exclude_none=True)
+                if payload.dataset_context
+                else None
+            ),
         )
     except AnnotationError as exc:
         logger.exception("Batch annotation failed")
@@ -204,16 +196,8 @@ async def annotate_batch(
     crosschecked = crosscheck_batch(
         annotations,
         marker_db,
-        species=(
-            payload.dataset_context.species
-            if payload.dataset_context
-            else None
-        ),
-        tissue=(
-            payload.dataset_context.tissue
-            if payload.dataset_context
-            else None
-        ),
+        species=(payload.dataset_context.species if payload.dataset_context else None),
+        tissue=(payload.dataset_context.tissue if payload.dataset_context else None),
     )
     report_model = build_structured_report(annotations, crosschecked)
     report = report_model.model_dump()
