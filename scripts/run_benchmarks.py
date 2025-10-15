@@ -6,9 +6,10 @@ import argparse
 import json
 import os
 import shutil
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any
 
 from backend.llm.annotator import Annotator
 from config.settings import get_settings
@@ -22,14 +23,14 @@ from evaluation.report_templates import (
 BENCHMARK_REGRESSION_THRESHOLD = 0.05  # 5 percentage points
 
 
-def discover_datasets(directory: Path, patterns: Optional[Iterable[str]] = None) -> List[Path]:
+def discover_datasets(directory: Path, patterns: Iterable[str] | None = None) -> list[Path]:
     if not patterns:
         return sorted(p for p in directory.glob("*.json") if p.is_file())
 
-    resolved: Dict[Path, None] = {}
+    resolved: dict[Path, None] = {}
     for pattern in patterns:
         candidate = Path(pattern)
-        matches: List[Path] = []
+        matches: list[Path] = []
         if candidate.is_absolute():
             matches = sorted(p for p in candidate.parent.glob(candidate.name) if p.is_file())
         else:
@@ -70,7 +71,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_previous_metrics(previous_dir: Path, dataset_name: str) -> Optional[Dict[str, Optional[float]]]:
+def load_previous_metrics(previous_dir: Path, dataset_name: str) -> dict[str, float | None] | None:
     previous_file = previous_dir / f"{dataset_name}.json"
     if not previous_file.exists():
         return None
@@ -91,13 +92,17 @@ def load_previous_metrics(previous_dir: Path, dataset_name: str) -> Optional[Dic
 def write_outputs(
     output_prefix: Path,
     dataset_name: str,
-    payload: Dict[str, Any],
-    deltas: Dict[str, Optional[float]],
-    history: List[Dict[str, float]],
+    payload: dict[str, Any],
+    deltas: dict[str, float | None],
+    history: list[dict[str, float]],
 ) -> None:
     output_prefix.with_suffix(".json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
-    markdown_payload = render_markdown_report(payload, deltas=deltas, regression_threshold=BENCHMARK_REGRESSION_THRESHOLD)
+    markdown_payload = render_markdown_report(
+        payload,
+        deltas=deltas,
+        regression_threshold=BENCHMARK_REGRESSION_THRESHOLD,
+    )
     markdown_payload += "\n\n" + render_text_confusion_matrix(payload)
     output_prefix.with_suffix(".md").write_text(markdown_payload, encoding="utf-8")
 
@@ -105,7 +110,12 @@ def write_outputs(
     output_prefix.with_suffix(".csv").write_text(sparkline_csv, encoding="utf-8")
 
 
-def update_latest_dir(latest_dir: Path, timestamp_dir: Path, dataset_names: Iterable[str], summary_files: Iterable[Path]) -> None:
+def update_latest_dir(
+    latest_dir: Path,
+    timestamp_dir: Path,
+    dataset_names: Iterable[str],
+    summary_files: Iterable[Path],
+) -> None:
     if latest_dir.exists():
         shutil.rmtree(latest_dir)
     latest_dir.mkdir(parents=True, exist_ok=True)
@@ -137,8 +147,8 @@ def run() -> None:
     base_output.mkdir(parents=True, exist_ok=True)
 
     latest_dir = args.output_dir / "latest"
-    diff_summary: Dict[str, Dict[str, Optional[float]]] = {}
-    regressions: List[str] = []
+    diff_summary: dict[str, dict[str, float | None]] = {}
+    regressions: list[str] = []
 
     for dataset_path in datasets:
         dataset_name = dataset_path.stem

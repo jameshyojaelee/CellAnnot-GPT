@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import Any, Dict, Iterable, List, Optional, Union
+from collections.abc import Iterable
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -12,32 +13,32 @@ from backend.validation.crosscheck import CrosscheckResult
 
 class ClusterReport(BaseModel):
     cluster_id: str
-    annotation: Dict[str, Any]
-    validation: Optional[Dict[str, Any]] = None
-    warnings: List[str] = Field(default_factory=list)
+    annotation: dict[str, Any]
+    validation: dict[str, Any] | None = None
+    warnings: list[str] = Field(default_factory=list)
     status: str
-    confidence: Optional[str] = None
+    confidence: str | None = None
 
 
 class DatasetSummary(BaseModel):
     total_clusters: int
     supported_clusters: int
     flagged_clusters: int
-    unknown_clusters: List[str] = Field(default_factory=list)
+    unknown_clusters: list[str] = Field(default_factory=list)
 
 
 class DatasetMetrics(BaseModel):
     support_rate: float
     flagged_rate: float
     unknown_rate: float
-    flagged_reasons: Dict[str, int] = Field(default_factory=dict)
-    confidence_counts: Dict[str, int] = Field(default_factory=dict)
+    flagged_reasons: dict[str, int] = Field(default_factory=dict)
+    confidence_counts: dict[str, int] = Field(default_factory=dict)
 
 
 class DatasetReport(BaseModel):
     summary: DatasetSummary
     metrics: DatasetMetrics
-    clusters: List[ClusterReport]
+    clusters: list[ClusterReport]
 
 
 def _compute_rates(count: int, total: int) -> float:
@@ -45,22 +46,22 @@ def _compute_rates(count: int, total: int) -> float:
 
 
 def build_structured_report(
-    annotations: Iterable[Dict[str, Any]],
-    crosscheck_results: Dict[str, CrosscheckResult],
+    annotations: Iterable[dict[str, Any]],
+    crosscheck_results: dict[str, CrosscheckResult],
 ) -> DatasetReport:
     """Combine annotations with validation findings into a canonical structure."""
 
-    clusters: List[ClusterReport] = []
+    clusters: list[ClusterReport] = []
     supported = 0
     flagged = 0
-    unknown_clusters: List[str] = []
+    unknown_clusters: list[str] = []
     reason_counts: Counter[str] = Counter()
     confidence_counts: Counter[str] = Counter()
 
     for annotation in annotations:
         cluster_id = str(annotation.get("cluster_id", "unknown"))
         validation = crosscheck_results.get(cluster_id)
-        warnings: List[str] = []
+        warnings: list[str] = []
         confidence = (annotation.get("confidence") or "Unknown").title()
         confidence_counts[confidence] += 1
 
@@ -118,7 +119,7 @@ def build_structured_report(
     return DatasetReport(summary=summary, metrics=metrics, clusters=clusters)
 
 
-def render_text_report(report: Union[DatasetReport, Dict[str, Any]]) -> str:
+def render_text_report(report: DatasetReport | dict[str, Any]) -> str:
     """Render a human-readable multi-line summary from the structured report."""
 
     dataset = report if isinstance(report, DatasetReport) else DatasetReport.model_validate(report)

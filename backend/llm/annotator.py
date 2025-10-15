@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
+from typing import Any
 
 from jsonschema import Draft202012Validator
 from openai import OpenAI
@@ -25,7 +26,7 @@ class SchemaValidationError(AnnotationError):
     """Raised when LLM output fails JSON Schema validation."""
 
 
-DEFAULT_MARKER_KB: Dict[str, Dict[str, Any]] = {
+DEFAULT_MARKER_KB: dict[str, dict[str, Any]] = {
     "B cell": {
         "markers": {"MS4A1", "CD79A", "CD74", "CD19"},
         "ontology_id": "CL:0000236",
@@ -60,14 +61,14 @@ DEFAULT_MARKER_KB: Dict[str, Dict[str, Any]] = {
 class MockAnnotator:
     """Heuristic annotator used when external LLM access is unavailable."""
 
-    def __init__(self, knowledge_base: Optional[Dict[str, Dict[str, Any]]] = None) -> None:
+    def __init__(self, knowledge_base: dict[str, dict[str, Any]] | None = None) -> None:
         self.knowledge_base = knowledge_base or DEFAULT_MARKER_KB
 
     def annotate_cluster(
         self,
-        cluster_payload: Dict[str, Any],
-        dataset_context: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        cluster_payload: dict[str, Any],
+        dataset_context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         markers = self._normalise_markers(cluster_payload.get("markers", []))
         ranked = self._rank_labels(markers, dataset_context)
 
@@ -82,7 +83,7 @@ class MockAnnotator:
             rationale = "No strong marker overlap; reporting as Unknown/Novel."
             confidence = "Low"
             caveats = "Heuristic fallback due to missing LLM output."
-            alternatives: List[Dict[str, str]] = []
+            alternatives: list[dict[str, str]] = []
         else:
             primary_label = best_label
             ontology_id = self.knowledge_base[best_label].get("ontology_id")
@@ -102,25 +103,29 @@ class MockAnnotator:
 
     def annotate_batch(
         self,
-        clusters: Iterable[Dict[str, Any]],
-        dataset_context: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Dict[str, Any]]:
-        results: Dict[str, Dict[str, Any]] = {}
+        clusters: Iterable[dict[str, Any]],
+        dataset_context: dict[str, Any] | None = None,
+    ) -> dict[str, dict[str, Any]]:
+        results: dict[str, dict[str, Any]] = {}
         for cluster in clusters:
             cluster_id = str(cluster.get("cluster_id", "unknown"))
             results[cluster_id] = self.annotate_cluster(cluster, dataset_context)
         return results
 
     @staticmethod
-    def _normalise_markers(markers: Sequence[str]) -> Set[str]:
-        return {marker.upper().strip() for marker in markers if isinstance(marker, str) and marker.strip()}
+    def _normalise_markers(markers: Sequence[str]) -> set[str]:
+        return {
+            marker.upper().strip()
+            for marker in markers
+            if isinstance(marker, str) and marker.strip()
+        }
 
     def _rank_labels(
         self,
-        markers: Set[str],
-        dataset_context: Optional[Dict[str, Any]],
-    ) -> List[Tuple[int, str, Set[str]]]:
-        ranked: List[Tuple[int, str, Set[str]]] = []
+        markers: set[str],
+        dataset_context: dict[str, Any] | None,
+    ) -> list[tuple[int, str, set[str]]]:
+        ranked: list[tuple[int, str, set[str]]] = []
         for label, info in self.knowledge_base.items():
             kb_markers = info.get("markers", set())
             shared = markers & kb_markers
@@ -137,8 +142,11 @@ class MockAnnotator:
             return "Medium"
         return "Low"
 
-    def _build_alternatives(self, ranked: Iterable[Tuple[int, str, Set[str]]]) -> List[Dict[str, str]]:
-        alternatives: List[Dict[str, str]] = []
+    def _build_alternatives(
+        self,
+        ranked: Iterable[tuple[int, str, set[str]]],
+    ) -> list[dict[str, str]]:
+        alternatives: list[dict[str, str]] = []
         for score, label, shared in ranked:
             if score == 0 or len(alternatives) >= 2:
                 break
@@ -156,14 +164,14 @@ class Annotator:
 
     def __init__(
         self,
-        settings: Optional[Settings] = None,
+        settings: Settings | None = None,
         *,
-        client: Optional[OpenAI] = None,
-        mock_backend: Optional[MockAnnotator] = None,
+        client: OpenAI | None = None,
+        mock_backend: MockAnnotator | None = None,
     ) -> None:
         self.settings = settings or get_settings()
         self._mock_backend = mock_backend or MockAnnotator()
-        self._client: Optional[OpenAI]
+        self._client: OpenAI | None
 
         if client is not None:
             self._client = client
@@ -184,10 +192,10 @@ class Annotator:
             if self.settings.openai_requests_per_minute <= 0
             else 60.0 / self.settings.openai_requests_per_minute
         )
-        self._last_call_ts: Optional[float] = None
-        self._annotation_schema: Dict[str, Any]
+        self._last_call_ts: float | None = None
+        self._annotation_schema: dict[str, Any]
         self._annotation_validator: Draft202012Validator
-        self._batch_schema: Dict[str, Any]
+        self._batch_schema: dict[str, Any]
         self._batch_validator: Draft202012Validator
         self._load_schemas()
 
@@ -198,12 +206,19 @@ class Annotator:
     # Public API -----------------------------------------------------------------
 
     def _load_schemas(self) -> None:
-        schema_path = Path(__file__).resolve().parents[2] / "schemas" / "annotation_result.schema.json"
+        schema_path = (
+            Path(__file__).resolve().parents[2]
+            / "schemas"
+            / "annotation_result.schema.json"
+        )
         try:
             with schema_path.open("r", encoding="utf-8") as fh:
                 dataset_schema = json.load(fh)
         except FileNotFoundError:
-            logger.error("Annotation schema not found at %s; using permissive validator.", schema_path)
+            logger.error(
+                "Annotation schema not found at %s; using permissive validator.",
+                schema_path,
+            )
             dataset_schema = {}
 
         annotation_schema = (
@@ -229,9 +244,9 @@ class Annotator:
 
     def annotate_cluster(
         self,
-        cluster_payload: Dict[str, Any],
-        dataset_context: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        cluster_payload: dict[str, Any],
+        dataset_context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Annotate a single cluster and return the parsed JSON response."""
 
         if self._mode == "mock" or self._client is None:
@@ -263,9 +278,9 @@ class Annotator:
 
     def annotate_batch(
         self,
-        clusters: Iterable[Dict[str, Any]],
-        dataset_context: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        clusters: Iterable[dict[str, Any]],
+        dataset_context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Annotate multiple clusters in one call."""
 
         if self._mode == "mock" or self._client is None:
@@ -299,7 +314,7 @@ class Annotator:
 
     # Internal helpers -----------------------------------------------------------
 
-    def _parse_json(self, raw: str, *, context: str) -> Dict[str, Any]:
+    def _parse_json(self, raw: str, *, context: str) -> dict[str, Any]:
         try:
             data = json.loads(raw)
         except json.JSONDecodeError as exc:
@@ -308,14 +323,14 @@ class Annotator:
             raise AnnotationError(f"{context} expected JSON object, received {type(data)}")
         return data
 
-    def _validate_annotation_payload(self, payload: Dict[str, Any]) -> None:
+    def _validate_annotation_payload(self, payload: dict[str, Any]) -> None:
         if not isinstance(payload, dict):
             raise SchemaValidationError("Annotation payload must be an object.")
         errors = sorted(self._annotation_validator.iter_errors(payload), key=lambda err: err.path)
         if errors:
             raise SchemaValidationError(errors[0].message)
 
-    def _validate_batch_payload(self, payload: Dict[str, Any]) -> None:
+    def _validate_batch_payload(self, payload: dict[str, Any]) -> None:
         if not isinstance(payload, dict):
             raise SchemaValidationError("Batch payload must be an object mapping cluster IDs.")
         errors = sorted(self._batch_validator.iter_errors(payload), key=lambda err: err.path)
@@ -323,7 +338,7 @@ class Annotator:
             raise SchemaValidationError(errors[0].message)
 
     @staticmethod
-    def _append_warning(annotation: Dict[str, Any], message: str) -> None:
+    def _append_warning(annotation: dict[str, Any], message: str) -> None:
         warnings = annotation.get("warnings")
         if isinstance(warnings, list):
             warnings.append(message)
@@ -333,8 +348,8 @@ class Annotator:
     def _log_request(
         self,
         operation: str,
-        payload: Iterable[Dict[str, Any]] | Dict[str, Any],
-        dataset_context: Optional[Dict[str, Any]],
+        payload: Iterable[dict[str, Any]] | dict[str, Any],
+        dataset_context: dict[str, Any] | None,
     ) -> None:
         if isinstance(payload, dict):
             marker_counts = len(payload.get("markers") or [])
@@ -354,7 +369,7 @@ class Annotator:
             },
         )
 
-    def _log_response(self, operation: str, payload: Dict[str, Any]) -> None:
+    def _log_response(self, operation: str, payload: dict[str, Any]) -> None:
         logger.info(
             "llm.response",
             extra={
@@ -376,7 +391,13 @@ class Annotator:
             self._sleep(wait_for)
         self._last_call_ts = time.monotonic()
 
-    def _call_llm(self, messages: List[Dict[str, str]], *, schema: Dict[str, Any], schema_name: str) -> str:
+    def _call_llm(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        schema: dict[str, Any],
+        schema_name: str,
+    ) -> str:
         if self._client is None:
             raise AnnotationError("LLM client unavailable; mock mode should be used instead.")
 

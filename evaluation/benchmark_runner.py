@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any
 
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score, precision_recall_fscore_support
@@ -17,17 +17,17 @@ from backend.llm.annotator import Annotator
 class BenchmarkResult:
     accuracy: float
     macro_f1: float
-    per_class: Dict[str, Dict[str, float]]
-    predictions: List[Dict[str, Any]]
+    per_class: dict[str, dict[str, float]]
+    predictions: list[dict[str, Any]]
 
 
-def load_dataset(dataset_path: Path) -> Dict[str, Any]:
+def load_dataset(dataset_path: Path) -> dict[str, Any]:
     with dataset_path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def run_benchmark(
-    dataset: Dict[str, Any],
+    dataset: dict[str, Any],
     annotator: Annotator,
 ) -> BenchmarkResult:
     clusters = dataset["clusters"]

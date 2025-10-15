@@ -24,9 +24,10 @@ import io
 import json
 import logging
 import sqlite3
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set
+from typing import Any
 
 import httpx
 import pandas as pd
@@ -56,11 +57,11 @@ class SourceConfig:
     name: str
     fmt: str
     parser: Callable[[bytes, str], pd.DataFrame]
-    metadata: Dict[str, str] = field(default_factory=dict)
-    url: Optional[str] = None
-    local_path: Optional[Path] = None
-    required_columns: Optional[Sequence[str]] = None
-    checksum: Optional[str] = None
+    metadata: dict[str, str] = field(default_factory=dict)
+    url: str | None = None
+    local_path: Path | None = None
+    required_columns: Sequence[str] | None = None
+    checksum: str | None = None
     checksum_algorithm: str = "sha256"
 
 
@@ -106,7 +107,12 @@ def parse_cellmarker(payload: bytes, source: str) -> pd.DataFrame:
     if missing:
         raise ValueError(f"{source} is missing columns: {', '.join(sorted(missing))}")
 
-    references = df["pubmed_id"].map(lambda x: f"https://pubmed.ncbi.nlm.nih.gov/{x}" if pd.notna(x) else "")
+    def _pubmed_url(pubmed_id: Any) -> str:
+        if pd.notna(pubmed_id):
+            return f"https://pubmed.ncbi.nlm.nih.gov/{pubmed_id}"
+        return ""
+
+    references = df["pubmed_id"].map(_pubmed_url)
 
     normalized = pd.DataFrame(
         {
@@ -131,7 +137,7 @@ def parse_curated_json(payload: bytes, source: str) -> pd.DataFrame:
     if not isinstance(records, list):
         raise ValueError(f"{source} must be a list of marker objects")
 
-    normalized: List[Dict[str, str]] = []
+    normalized: list[dict[str, str]] = []
     for record in records:
         normalized.append(
             {
@@ -197,7 +203,7 @@ def ensure_evidence_scores(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-PARSER_REGISTRY: Dict[str, Callable[[bytes, str], pd.DataFrame]] = {
+PARSER_REGISTRY: dict[str, Callable[[bytes, str], pd.DataFrame]] = {
     "panglaodb": parse_panglaodb,
     "cellmarker": parse_cellmarker,
     "curated_json": parse_curated_json,
@@ -214,9 +220,9 @@ class MarkerDataLoader:
         sources: Iterable[SourceConfig],
         storage_dir: Path,
         *,
-        parquet_path: Optional[Path] = None,
-        sqlite_path: Optional[Path] = None,
-        http_client: Optional[httpx.Client] = None,
+        parquet_path: Path | None = None,
+        sqlite_path: Path | None = None,
+        http_client: httpx.Client | None = None,
     ) -> None:
         self.sources = list(sources)
         self.storage_dir = storage_dir
@@ -251,10 +257,14 @@ class MarkerDataLoader:
             if not source.url:
                 raise SourceResolutionError(f"Source '{source.name}' missing URL and local path.")
             try:
-                response = self._http_client.get(str(source.url), follow_redirects=True)
+                response = self._http_client.get(
+                    str(source.url),
+                    follow_redirects=True,
+                )
                 response.raise_for_status()
             except httpx.HTTPError as exc:
-                raise SourceResolutionError(f"Failed to download '{source.name}' from {source.url}: {exc}") from exc
+                msg = f"Failed to download '{source.name}' from {source.url}: {exc}"
+                raise SourceResolutionError(msg) from exc
             payload = response.content
             resolution_path = source.url
 
@@ -272,7 +282,7 @@ class MarkerDataLoader:
     def _validate_schema(self, df: pd.DataFrame, source: SourceConfig) -> None:
         """Ensure the normalized dataset contains required columns."""
 
-        required: Set[str]
+        required: set[str]
         if source.required_columns:
             required = {col for col in source.required_columns}
         else:
@@ -280,7 +290,10 @@ class MarkerDataLoader:
 
         missing = required - set(df.columns)
         if missing:
-            raise ValueError(f"{source.name} missing required columns after parsing: {', '.join(sorted(missing))}")
+            missing_columns = ", ".join(sorted(missing))
+            raise ValueError(
+                f"{source.name} missing required columns after parsing: {missing_columns}"
+            )
 
     def _normalise_frame(self, df: pd.DataFrame, source: SourceConfig) -> pd.DataFrame:
         """Apply common cleanup to parsed frames."""
@@ -293,14 +306,23 @@ class MarkerDataLoader:
             df["source_version"] = ""
         return df
 
-    def load_all(self, *, local_only: bool = False, enforce_checksums: bool = False) -> pd.DataFrame:
-        frames: List[pd.DataFrame] = []
+    def load_all(
+        self,
+        *,
+        local_only: bool = False,
+        enforce_checksums: bool = False,
+    ) -> pd.DataFrame:
+        frames: list[pd.DataFrame] = []
         resolved_sources = 0
-        resolution_errors: List[str] = []
+        resolution_errors: list[str] = []
 
         for cfg in self.sources:
             try:
-                payload = self._fetch(cfg, local_only=local_only, enforce_checksums=enforce_checksums)
+                payload = self._fetch(
+                    cfg,
+                    local_only=local_only,
+                    enforce_checksums=enforce_checksums,
+                )
             except ChecksumMismatchError as exc:
                 logger.error("Checksum verification failed for %s: %s", cfg.name, exc)
                 raise
@@ -312,7 +334,7 @@ class MarkerDataLoader:
             resolved_sources += 1
             try:
                 df = cfg.parser(payload, cfg.name)
-            except Exception as exc:  # noqa: BLE001 - bubble up parser issues with context
+            except Exception as exc:  # - bubble up parser issues with context
                 raise ValueError(f"{cfg.name} parser failed: {exc}") from exc
 
             df = self._normalise_frame(df, cfg)
@@ -326,7 +348,9 @@ class MarkerDataLoader:
             raise ValueError("Resolved sources but no marker records were produced")
 
         combined = pd.concat(frames, ignore_index=True)
-        combined = combined.drop_duplicates(subset=["source", "cell_type", "gene_symbol", "species"])
+        combined = combined.drop_duplicates(
+            subset=["source", "cell_type", "gene_symbol", "species"]
+        )
         # ensure column order for downstream consumers
         ordered_cols = [col for col in NORMALIZED_COLUMNS if col in combined.columns]
         remaining_cols = [col for col in combined.columns if col not in ordered_cols]
@@ -363,13 +387,13 @@ class MarkerDataLoader:
             self.close()
 
 
-def load_sources_from_yaml(path: Path) -> List[SourceConfig]:
+def load_sources_from_yaml(path: Path) -> list[SourceConfig]:
     if not path.exists():
         raise FileNotFoundError(f"Marker source config not found: {path}")
     with path.open("r", encoding="utf-8") as fh:
         data = yaml.safe_load(fh) or {}
     sources_cfg = data.get("sources", [])
-    sources: List[SourceConfig] = []
+    sources: list[SourceConfig] = []
     for entry in sources_cfg:
         name = entry["name"]
         fmt = entry.get("fmt", "csv").lower()
@@ -393,7 +417,7 @@ def load_sources_from_yaml(path: Path) -> List[SourceConfig]:
     return sources
 
 
-def default_sources(config_path: Optional[Path] = None) -> List[SourceConfig]:
+def default_sources(config_path: Path | None = None) -> list[SourceConfig]:
     if config_path:
         return load_sources_from_yaml(config_path)
     return []

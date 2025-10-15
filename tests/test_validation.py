@@ -7,7 +7,7 @@ from backend.validation.crosscheck import (
     crosscheck_annotation,
     crosscheck_batch,
 )
-from backend.validation.report import DatasetReport, build_structured_report, render_text_report
+from backend.validation.report import build_structured_report, render_text_report
 
 
 def make_marker_db() -> pd.DataFrame:
@@ -54,7 +54,12 @@ def test_crosscheck_detects_contradiction() -> None:
         "ontology_id": "CL:0000236",
         "markers": ["MS4A1", "GNLY"],
     }
-    result = crosscheck_annotation(annotation, make_marker_db(), species="Homo sapiens", tissue="Blood")
+    result = crosscheck_annotation(
+        annotation,
+        make_marker_db(),
+        species="Homo sapiens",
+        tissue="Blood",
+    )
 
     assert result.is_supported is False
     assert result.supporting_markers == ["MS4A1"]
@@ -69,7 +74,11 @@ def test_crosscheck_supports_valid_annotation() -> None:
         "ontology_id": "CL:0000084",
         "markers": ["CD3E"],
     }
-    result = crosscheck_annotation(annotation, make_marker_db(), species="Homo sapiens")
+    result = crosscheck_annotation(
+        annotation,
+        make_marker_db(),
+        species="Homo sapiens",
+    )
 
     assert result.is_supported is True
     assert result.supporting_markers == ["CD3E"]

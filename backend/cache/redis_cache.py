@@ -6,7 +6,7 @@ import json
 import logging
 from dataclasses import dataclass
 from hashlib import sha256
-from typing import Any, Dict, Optional
+from typing import Any
 
 try:
     import redis.asyncio as redis
@@ -30,12 +30,12 @@ class RedisAnnotationCache:
         self.config = config
         self._client = redis.from_url(config.url, decode_responses=True)
 
-    def _key(self, payload: Dict[str, Any]) -> str:
+    def _key(self, payload: dict[str, Any]) -> str:
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         digest = sha256(canonical.encode("utf-8")).hexdigest()
         return f"{self.config.namespace}:{digest}"
 
-    async def get(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def get(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         key = self._key(payload)
         raw = await self._client.get(key)
         if raw is None:
@@ -47,7 +47,7 @@ class RedisAnnotationCache:
             await self._client.delete(key)
             return None
 
-    async def set(self, payload: Dict[str, Any], value: Dict[str, Any]) -> None:
+    async def set(self, payload: dict[str, Any], value: dict[str, Any]) -> None:
         key = self._key(payload)
         await self._client.set(key, json.dumps(value), ex=self.config.ttl_seconds)
 
@@ -55,7 +55,7 @@ class RedisAnnotationCache:
         await self._client.close()
 
 
-def create_cache_from_env(url: Optional[str]) -> Optional[RedisAnnotationCache]:
+def create_cache_from_env(url: str | None) -> RedisAnnotationCache | None:
     if not url:
         return None
     if redis is None:

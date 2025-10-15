@@ -82,9 +82,11 @@ def main() -> None:
     except ChecksumMismatchError as exc:
         raise SystemExit(f"[cellannot] Checksum verification failed: {exc}") from exc
 
-    print(  # noqa: T201
-        f"Ingested {len(df)} marker records from {len(loader.sources)} sources into {args.output_dir}"
+    message = (
+        f"Ingested {len(df)} marker records from {len(loader.sources)} sources "
+        f"into {args.output_dir}"
     )
+    print(message)
 
 
 if __name__ == "__main__":

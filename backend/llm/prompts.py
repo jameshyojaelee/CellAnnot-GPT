@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, Optional
+from collections.abc import Iterable
+from typing import Any
 
 
 def build_system_prompt() -> str:
@@ -16,7 +17,7 @@ def build_system_prompt() -> str:
     )
 
 
-def _format_context(dataset_context: Optional[Dict[str, Any]]) -> str:
+def _format_context(dataset_context: dict[str, Any] | None) -> str:
     if not dataset_context:
         return "Context: not provided."
     parts = [f"{key}: {value}" for key, value in dataset_context.items() if value]
@@ -24,7 +25,7 @@ def _format_context(dataset_context: Optional[Dict[str, Any]]) -> str:
 
 
 def build_single_cluster_prompt(
-    cluster_payload: Dict[str, Any], dataset_context: Optional[Dict[str, Any]] = None
+    cluster_payload: dict[str, Any], dataset_context: dict[str, Any] | None = None
 ) -> str:
     """Construct a single-cluster annotation prompt."""
 
@@ -34,15 +35,20 @@ def build_single_cluster_prompt(
 
     stats = cluster_payload.get("stats") or {}
     stats_lines = "\\n".join(f"{key}: {value}" for key, value in stats.items())
-    stats_block = f"Cluster stats:\\n{stats_lines}" if stats_lines else "Cluster stats: not provided."
+    stats_block = (
+        f"Cluster stats:\\n{stats_lines}"
+        if stats_lines
+        else "Cluster stats: not provided."
+    )
 
     cluster_id = cluster_payload.get("cluster_id", "unknown")
 
     instructions = (
-        "Return JSON with keys: primary_label, ontology_id, confidence, rationale, alternatives, "
-        "caveats, evidence_sources. Provide alternatives as a list with 'label' and 'reason'. "
-        "Use 'Unknown or Novel' if evidence is conflicting. evidence_sources must list at least one "
-        "citation referencing PanglaoDB, CellMarker, or curated literature."
+        "Return JSON with keys: primary_label, ontology_id, confidence, rationale, "
+        "alternatives, caveats, evidence_sources. Provide alternatives as a list with 'label' "
+        "and 'reason'. Use 'Unknown or Novel' if evidence is conflicting. "
+        "Evidence_sources must list at least one citation referencing PanglaoDB, CellMarker, "
+        "or curated literature."
     )
 
     return (
@@ -55,8 +61,8 @@ def build_single_cluster_prompt(
 
 
 def build_batch_prompt(
-    clusters: Iterable[Dict[str, Any]],
-    dataset_context: Optional[Dict[str, Any]] = None,
+    clusters: Iterable[dict[str, Any]],
+    dataset_context: dict[str, Any] | None = None,
 ) -> str:
     """Construct a batch annotation prompt for multiple clusters."""
 
@@ -87,7 +93,7 @@ def build_batch_prompt(
 
 
 def build_uncertainty_prompt(
-    cluster_payload: Dict[str, Any], dataset_context: Optional[Dict[str, Any]] = None
+    cluster_payload: dict[str, Any], dataset_context: dict[str, Any] | None = None
 ) -> str:
     """Construct a prompt that analyses why annotation is ambiguous."""
 

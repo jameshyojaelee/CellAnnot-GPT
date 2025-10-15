@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Dict, Iterable, List, Optional
+from collections.abc import Iterable
 
 
-def _format_delta(delta: Optional[float], regression_threshold: float) -> str:
+def _format_delta(delta: float | None, regression_threshold: float) -> str:
     if delta is None:
         return ""
     delta_percent = f"{delta:+.2%}"
@@ -13,43 +13,64 @@ def _format_delta(delta: Optional[float], regression_threshold: float) -> str:
 
 
 def render_markdown_report(
-    result: Dict,
+    result: dict,
     *,
-    deltas: Optional[Dict[str, Optional[float]]] = None,
+    deltas: dict[str, float | None] | None = None,
     regression_threshold: float = 0.05,
 ) -> str:
     lines = [
         "# CellAnnot-GPT Benchmark Report",
         "",
-        f"- Accuracy: {result['accuracy']:.2%}{_format_delta((deltas or {}).get('accuracy'), regression_threshold)}",
-        f"- Macro F1: {result['macro_f1']:.2%}{_format_delta((deltas or {}).get('macro_f1'), regression_threshold)}",
+        (
+            f"- Accuracy: {result['accuracy']:.2%}"
+            f"{_format_delta((deltas or {}).get('accuracy'), regression_threshold)}"
+        ),
+        (
+            f"- Macro F1: {result['macro_f1']:.2%}"
+            f"{_format_delta((deltas or {}).get('macro_f1'), regression_threshold)}"
+        ),
         "",
         "## Per-class Metrics",
         "",
     ]
     for label, metrics in result["per_class"].items():
-        lines.append(f"- **{label}**: Precision {metrics['precision']:.2%}, Recall {metrics['recall']:.2%}, F1 {metrics['f1']:.2%}")
+        lines.append(
+            "- **{label}**: Precision {precision:.2%}, "
+            "Recall {recall:.2%}, F1 {f1:.2%}".format(
+                label=label,
+                precision=metrics["precision"],
+                recall=metrics["recall"],
+                f1=metrics["f1"],
+            )
+        )
     lines.append("\n## Prediction Details\n")
     for pred in result["predictions"]:
         lines.append(
-            f"- Cluster {pred['cluster_id']}: predicted {pred['predicted']} (truth {pred['ground_truth']})"
+            "- Cluster {id}: predicted {pred} (truth {truth})".format(
+                id=pred["cluster_id"],
+                pred=pred["predicted"],
+                truth=pred["ground_truth"],
+            )
         )
     return "\n".join(lines)
 
 
-def render_text_confusion_matrix(result: Dict) -> str:
+def render_text_confusion_matrix(result: dict) -> str:
     truth_labels = sorted({row["ground_truth"] for row in result["predictions"]})
     pred_labels = sorted({row["predicted"] for row in result["predictions"]})
     labels = sorted(set(truth_labels) | set(pred_labels))
     matrix_lines = ["Confusion Matrix (rows=truth, cols=prediction)"]
-    header = "\t".join([" "] + labels)
+    header = "\t".join([" ", *labels])
     matrix_lines.append(header)
-    counts = {label: {l: 0 for l in labels} for label in labels}
+    counts = {
+        label: {label_name: 0 for label_name in labels}
+        for label in labels
+    }
     for row in result["predictions"]:
         truth = row.get("ground_truth")
         pred = row.get("predicted")
         if truth not in counts:
-            counts[truth] = {l: 0 for l in labels}
+            counts[truth] = {label_name: 0 for label_name in labels}
         if pred not in counts:
             for key in counts:
                 counts[key].setdefault(pred, 0)
@@ -60,10 +81,12 @@ def render_text_confusion_matrix(result: Dict) -> str:
     return "\n".join(matrix_lines)
 
 
-def render_sparkline_csv(dataset: str, history: Iterable[Dict[str, float]]) -> str:
-    rows: List[str] = ["dataset,date,accuracy,macro_f1"]
+def render_sparkline_csv(dataset: str, history: Iterable[dict[str, float]]) -> str:
+    rows: list[str] = ["dataset,date,accuracy,macro_f1"]
     for entry in history:
         rows.append(
-            f"{dataset},{entry.get('date','')},{entry.get('accuracy', 0.0):.4f},{entry.get('macro_f1', 0.0):.4f}"
+            f"{dataset},{entry.get('date', '')},"
+            f"{entry.get('accuracy', 0.0):.4f},"
+            f"{entry.get('macro_f1', 0.0):.4f}"
         )
     return "\n".join(rows)

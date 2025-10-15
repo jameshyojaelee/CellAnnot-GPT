@@ -2,38 +2,36 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from pydantic import BaseModel, Field
 
 
 class ClusterStats(BaseModel):
-    avg_log_fc: Optional[float] = Field(None, alias="avg_logFC")
-    pct_expressed: Optional[float]
+    avg_log_fc: float | None = Field(None, alias="avg_logFC")
+    pct_expressed: float | None
 
 
 class ClusterPayload(BaseModel):
     cluster_id: str
-    markers: List[str] = Field(default_factory=list)
-    stats: Optional[ClusterStats] = None
-    notes: Optional[str] = None
+    markers: list[str] = Field(default_factory=list)
+    stats: ClusterStats | None = None
+    notes: str | None = None
 
 
 class DatasetContext(BaseModel):
-    species: Optional[str] = None
-    tissue: Optional[str] = None
-    condition: Optional[str] = None
+    species: str | None = None
+    tissue: str | None = None
+    condition: str | None = None
 
 
 class AnnotateClusterRequest(BaseModel):
     cluster: ClusterPayload
-    dataset_context: Optional[DatasetContext] = None
+    dataset_context: DatasetContext | None = None
     return_validated: bool = False
 
 
 class AnnotateBatchRequest(BaseModel):
-    clusters: List[ClusterPayload]
-    dataset_context: Optional[DatasetContext] = None
+    clusters: list[ClusterPayload]
+    dataset_context: DatasetContext | None = None
 
 
 class AnnotationResponse(BaseModel):

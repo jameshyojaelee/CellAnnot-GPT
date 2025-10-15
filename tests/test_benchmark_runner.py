@@ -1,10 +1,9 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 
 import pytest
-
-from pathlib import Path
-import json
 
 from evaluation.benchmark_runner import BenchmarkResult, load_and_run, run_benchmark
 from evaluation.report_templates import render_markdown_report, render_sparkline_csv

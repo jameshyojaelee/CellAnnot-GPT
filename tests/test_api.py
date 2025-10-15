@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Optional
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -83,27 +83,27 @@ client = TestClient(app)
 
 class FakeCache:
     def __init__(self) -> None:
-        self.store: Dict[str, Any] = {}
+        self.store: dict[str, Any] = {}
         self.get_calls = 0
         self.set_calls = 0
 
-    def _key(self, payload: Dict[str, Any]) -> str:
+    def _key(self, payload: dict[str, Any]) -> str:
         return json.dumps(payload, sort_keys=True)
 
-    async def get(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def get(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         self.get_calls += 1
         return self.store.get(self._key(payload))
 
-    async def set(self, payload: Dict[str, Any], value: Dict[str, Any]) -> None:
+    async def set(self, payload: dict[str, Any], value: dict[str, Any]) -> None:
         self.set_calls += 1
         self.store[self._key(payload)] = value
 
 
 class FailingCache:
-    async def get(self, payload: Dict[str, Any]) -> None:
+    async def get(self, payload: dict[str, Any]) -> None:
         raise RuntimeError("redis unavailable")
 
-    async def set(self, payload: Dict[str, Any], value: Dict[str, Any]) -> None:
+    async def set(self, payload: dict[str, Any], value: dict[str, Any]) -> None:
         raise RuntimeError("redis unavailable")
 
 

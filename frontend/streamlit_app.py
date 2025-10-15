@@ -3,11 +3,12 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from io import BytesIO
-from typing import Any, Dict, List
+from typing import Any
 
 import altair as alt
 import pandas as pd
 import streamlit as st
+
 try:
     from fpdf import FPDF
 except ImportError:  # pragma: no cover - optional dependency
@@ -39,24 +40,29 @@ def _show_toast(message: str, icon: str = "✅") -> None:
         st.toast(message, icon=icon)
 
 
-def _render_header(current_page: str, pages: List[str]) -> None:
+def _render_header(current_page: str, pages: list[str]) -> None:
     st.markdown(
         """
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0;">
-          <div style="font-size:1.4rem;font-weight:700;color:#1F6FEB;">CellAnnot-GPT Dashboard</div>
-          <div style="font-size:0.9rem;color:#4F6170;">Know your cells in a single click</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;
+        padding:0.5rem 0;">
+          <div style="font-size:1.4rem;font-weight:700;color:#1F6FEB;">
+            CellAnnot-GPT Dashboard
+          </div>
+          <div style="font-size:0.9rem;color:#4F6170;">
+            Know your cells in a single click
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
     index = pages.index(current_page)
-    breadcrumb = " › ".join(pages[: index + 1])
+    breadcrumb = " > ".join(pages[: index + 1])
     st.markdown(f"**{breadcrumb}**")
     if len(pages) > 1:
         st.progress(index / (len(pages) - 1))
 
 
-def _parse_marker_field(value: Any) -> List[str]:
+def _parse_marker_field(value: Any) -> list[str]:
     if isinstance(value, list):
         return [str(v).strip() for v in value if str(v).strip()]
     if isinstance(value, str):
@@ -74,7 +80,7 @@ def _parse_marker_field(value: Any) -> List[str]:
     return []
 
 
-def _build_pdf_report(report: Dict[str, Any]) -> bytes:
+def _build_pdf_report(report: dict[str, Any]) -> bytes:
     if FPDF is None:
         return b"PDF generation requires the fpdf2 package."
 
@@ -112,12 +118,13 @@ def _build_pdf_report(report: Dict[str, Any]) -> bytes:
     pdf.cell(0, 10, "Clusters", ln=1)
     pdf.set_font("Helvetica", size=10)
     for cluster in report.get("clusters", []):
-        pdf.multi_cell(
-            0,
-            5,
-            f"#{cluster['cluster_id']} | {cluster.get('annotation', {}).get('primary_label', 'Unknown')}"
-            f" | status: {cluster.get('status', 'n/a')}\nWarnings: {', '.join(cluster.get('warnings', [])) or 'None'}\n",
+        primary = cluster.get("annotation", {}).get("primary_label", "Unknown")
+        warnings = ", ".join(cluster.get("warnings", [])) or "None"
+        content = (
+            f"#{cluster['cluster_id']} | {primary} | status: {cluster.get('status', 'n/a')}\n"
+            f"Warnings: {warnings}\n"
         )
+        pdf.multi_cell(0, 5, content)
 
     buffer = BytesIO()
     pdf.output(buffer)
@@ -125,13 +132,13 @@ def _build_pdf_report(report: Dict[str, Any]) -> bytes:
     return buffer.read()
 
 
-def load_markers_from_csv(file) -> List[Dict[str, Any]]:
+def load_markers_from_csv(file) -> list[dict[str, Any]]:
     df = pd.read_csv(file)
     required_cols = {"cluster_id", "markers"}
     if missing := required_cols - set(df.columns):
         raise ValueError(f"CSV missing columns: {', '.join(sorted(missing))}")
 
-    clusters: List[Dict[str, Any]] = []
+    clusters: list[dict[str, Any]] = []
     for _, row in df.iterrows():
         clusters.append(
             {
@@ -153,7 +160,7 @@ def page_upload_markers() -> None:
     if uploaded_file:
         try:
             clusters = load_markers_from_csv(uploaded_file)
-        except Exception as exc:  # noqa: BLE001 - show friendly error
+        except Exception as exc:  # - show friendly error
             st.error(f"Failed to parse markers: {exc}")
             return
         st.success(f"Loaded {len(clusters)} clusters.")
@@ -183,7 +190,7 @@ def page_batch_annotate() -> None:
         with st.spinner("Annotating clusters..."):
             try:
                 result = annotate_batch(payload)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 st.error(f"Batch annotation failed: {exc}")
                 return
         st.session_state["batch_result"] = result
@@ -222,19 +229,21 @@ def page_review_results() -> None:
         summary.get("supported_clusters", 0),
         f"{metrics.get('support_rate', 0) * 100:.1f}%",
     )
-    col1.caption("ℹ️ Share of clusters validated successfully.")
+    col1.caption("Info: Share of clusters validated successfully.")
     col2.metric(
         "Flagged",
         summary.get("flagged_clusters", 0),
         f"{metrics.get('flagged_rate', 0) * 100:.1f}%",
     )
-    col2.caption("ℹ️ Requires manual review or marker cross-checking.")
+    col2.caption("Info: Requires manual review or marker cross-checking.")
     col3.metric(
         "Unknown",
         len(summary.get("unknown_clusters", [])),
         f"{metrics.get('unknown_rate', 0) * 100:.1f}%",
     )
-    col3.caption("ℹ️ Clusters where the model suggested novel/uncertain identity.")
+    col3.caption(
+        "Info: Clusters where the model suggested novel or uncertain identity."
+    )
 
     chart_data = pd.DataFrame(
         [
@@ -252,7 +261,10 @@ def page_review_results() -> None:
     confidence_counts = metrics.get("confidence_counts", {})
     if confidence_counts:
         confidence_df = pd.DataFrame(
-            [{"Confidence": level, "Count": count} for level, count in confidence_counts.items()]
+            [
+                {"Confidence": level, "Count": count}
+                for level, count in confidence_counts.items()
+            ]
         )
         conf_chart = (
             alt.Chart(confidence_df)
@@ -264,7 +276,13 @@ def page_review_results() -> None:
     flagged_reasons = metrics.get("flagged_reasons", {})
     if flagged_reasons:
         reason_df = pd.DataFrame(
-            [{"Reason": key.replace("_", " ").title(), "Count": val} for key, val in flagged_reasons.items()]
+            [
+                {
+                    "Reason": key.replace("_", " ").title(),
+                    "Count": val,
+                }
+                for key, val in flagged_reasons.items()
+            ]
         )
         reason_chart = (
             alt.Chart(reason_df)
@@ -308,7 +326,8 @@ def page_review_results() -> None:
     )
 
     st.info(
-        "Tip: use your browser's *Print → Save as PDF* or screenshot utilities to capture charts for slides."  # noqa: E501
+        "Tip: use your browser's *Print → Save as PDF* or screenshot utilities to "
+        "capture charts for slides."
     )
 
     for cluster in clusters:
@@ -323,7 +342,10 @@ def page_review_results() -> None:
         highlights = collect_marker_highlights(cluster)
         call_to_action = build_call_to_action(cluster)
 
-        with st.expander(f"Cluster {cluster_id} → {primary_label} ({status})", expanded=status != "Supported"):
+        with st.expander(
+            f"Cluster {cluster_id} → {primary_label} ({status})",
+            expanded=status != "Supported",
+        ):
             if markers:
                 st.markdown(
                     "**Markers:** " + format_marker_links(markers),
@@ -337,13 +359,15 @@ def page_review_results() -> None:
                 st.success("Supported by marker database")
 
             if highlights["warning_markers"]:
+                warning_links = format_marker_links(highlights["warning_markers"])
                 st.markdown(
-                    f"**Markers triggering warnings:** {format_marker_links(highlights['warning_markers'])}",
+                    f"**Markers triggering warnings:** {warning_links}",
                     unsafe_allow_html=True,
                 )
             if highlights["supporting_markers"]:
+                support_links = format_marker_links(highlights["supporting_markers"])
                 st.markdown(
-                    f"**Knowledge base support:** {format_marker_links(highlights['supporting_markers'])}",
+                    f"**Knowledge base support:** {support_links}",
                     unsafe_allow_html=True,
                 )
 
@@ -373,8 +397,8 @@ def page_review_results() -> None:
                 st.json(validation or {})
 
 
-def _prepare_run_dataframe(report: Dict[str, Any], run_label: str) -> pd.DataFrame:
-    rows: List[Dict[str, Any]] = []
+def _prepare_run_dataframe(report: dict[str, Any], run_label: str) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
     for cluster in report.get("clusters", []):
         validation = cluster.get("validation") or {}
         contradictory = validation.get("contradictory_markers") or {}
@@ -400,15 +424,21 @@ def page_compare_runs() -> None:
 
     options = {run["run_id"]: run for run in history}
     latest_id = history[-1]["run_id"]
-    previous_id = history[-2]["run_id"]
 
-    run_a_id = st.selectbox("Primary run", list(options.keys()), index=list(options.keys()).index(latest_id))
-    run_b_id = st.selectbox("Baseline run", [rid for rid in options.keys() if rid != run_a_id], index=0)
+    run_a_id = st.selectbox(
+        "Primary run",
+        list(options.keys()),
+        index=list(options.keys()).index(latest_id),
+    )
+    baseline_choices = [rid for rid in options if rid != run_a_id]
+    run_b_id = st.selectbox("Baseline run", baseline_choices, index=0)
 
     run_a = options[run_a_id]
     run_b = options[run_b_id]
 
-    st.caption(f"Comparing **{run_a_id}** ({run_a['timestamp']}) vs **{run_b_id}** ({run_b['timestamp']})")
+    st.caption(
+        f"Comparing **{run_a_id}** ({run_a['timestamp']}) vs **{run_b_id}** ({run_b['timestamp']})"
+    )
 
     df_a = _prepare_run_dataframe(run_a["report"], run_a_id)
     df_b = _prepare_run_dataframe(run_b["report"], run_b_id)
@@ -435,7 +465,13 @@ def page_compare_runs() -> None:
         suffixes=("_new", "_baseline"),
     )
     pivot = pivot.fillna({"status_new": "n/a", "status_baseline": "n/a"})
-    for col in ["contradictions_new", "contradictions_baseline", "warnings_new", "warnings_baseline"]:
+    columns_to_normalise = [
+        "contradictions_new",
+        "contradictions_baseline",
+        "warnings_new",
+        "warnings_baseline",
+    ]
+    for col in columns_to_normalise:
         if col in pivot.columns:
             pivot[col] = pivot[col].fillna(0).astype(int)
     pivot["status_changed"] = pivot["status_new"] != pivot["status_baseline"]
@@ -497,15 +533,20 @@ def page_single_cluster() -> None:
         if not markers:
             st.warning("Please provide at least one marker gene.")
         else:
+            dataset_context = {}
+            if species:
+                dataset_context["species"] = species
+            if tissue:
+                dataset_context["tissue"] = tissue
             payload = {
                 "cluster": {"cluster_id": "single", "markers": markers},
-                "dataset_context": {k: v for k, v in [("species", species), ("tissue", tissue)] if v},
+                "dataset_context": dataset_context,
                 "return_validated": True,
             }
             with st.spinner("Annotating..."):
                 try:
                     response = annotate_cluster_api(payload)
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     st.error(f"Annotation failed: {exc}")
                     return
             st.session_state["single_cluster_result"] = response["result"]
@@ -515,7 +556,6 @@ def page_single_cluster() -> None:
     if not result:
         return
 
-    summary = result.get("summary", {})
     cluster = result.get("clusters", [{}])[0]
     annotation = cluster.get("annotation", {})
     validation = cluster.get("validation")
@@ -535,7 +575,10 @@ def page_single_cluster() -> None:
 
     if primary_label.lower().startswith("unknown"):
         st.warning("Model suggests this cluster may represent a novel or uncertain cell type.")
-        st.info("Follow-up: inspect markers manually, consult domain experts, or gather additional data.")
+        st.info(
+            "Follow-up: inspect markers manually, consult domain experts, or gather "
+            "additional data."
+        )
 
     if warnings:
         st.error("\n".join(warnings))
@@ -549,7 +592,7 @@ def page_single_cluster() -> None:
     st.json(validation or {})
 
     explanation = annotation.get("rationale", "")
-    btn = st.download_button(
+    st.download_button(
         "Download Explanation",
         explanation.encode("utf-8"),
         file_name="cluster_explanation.txt",
@@ -559,10 +602,18 @@ def page_single_cluster() -> None:
 def main() -> None:
     _ensure_session_state()
 
-    pages = ["Upload Markers", "Batch Annotate", "Review Results", "Compare Batches", "Single Cluster"]
+    pages = [
+        "Upload Markers",
+        "Batch Annotate",
+        "Review Results",
+        "Compare Batches",
+        "Single Cluster",
+    ]
     st.sidebar.title("CellAnnot-GPT")
     st.sidebar.markdown(
-        "[Getting Started](docs/getting_started.md) · [API Reference](docs/api_reference.md) · [Operations](docs/operations.md)",
+        "[Getting Started](docs/getting_started.md) · "
+        "[API Reference](docs/api_reference.md) · "
+        "[Operations](docs/operations.md)",
         unsafe_allow_html=True,
     )
     llm_mode = "unknown"
@@ -574,7 +625,7 @@ def main() -> None:
         llm_mode = health.get("llm_mode", "unknown")
         cache_enabled = bool(health.get("cache_enabled", False))
         badge_color = "ok" if status == "ok" else "warn"
-    except Exception:  # noqa: BLE001 - keep sidebar resilient
+    except Exception:  # keep sidebar resilient
         badge_color = "error"
     else:
         if llm_mode == "mock":
@@ -587,8 +638,8 @@ def main() -> None:
             "`OPENAI_API_KEY` for live annotations."
         )
         st.info(
-            "Mock annotator active: predictions use marker heuristics only. Expect reduced accuracy "
-            "until an OpenAI API key is provided."
+            "Mock annotator active: predictions use marker heuristics only."
+            " Expect reduced accuracy until an OpenAI API key is provided."
         )
     if cache_enabled:
         st.sidebar.success("Redis cache active for repeated annotations.")

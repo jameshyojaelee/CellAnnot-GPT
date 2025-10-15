@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Awaitable, Callable, Dict, Optional
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from backend.cache.redis_cache import RedisAnnotationCache
 
 
 async def get_cached_or_run(
-    cache: Optional[RedisAnnotationCache],
-    payload: Dict[str, Any],
+    cache: RedisAnnotationCache | None,
+    payload: dict[str, Any],
     compute: Callable[[], Awaitable[Any]] | Callable[[], Any],
 ) -> tuple[Any, bool]:
     if cache is None:

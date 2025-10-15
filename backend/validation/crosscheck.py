@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -14,15 +15,15 @@ class CrosscheckResult:
 
     cluster_id: str
     primary_label: str
-    ontology_id: Optional[str]
+    ontology_id: str | None
     is_supported: bool
-    supporting_markers: List[str] = field(default_factory=list)
-    missing_markers: List[str] = field(default_factory=list)
-    contradictory_markers: Dict[str, List[str]] = field(default_factory=dict)
+    supporting_markers: list[str] = field(default_factory=list)
+    missing_markers: list[str] = field(default_factory=list)
+    contradictory_markers: dict[str, list[str]] = field(default_factory=dict)
     ontology_mismatch: bool = False
-    notes: List[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "cluster_id": self.cluster_id,
             "primary_label": self.primary_label,
@@ -36,16 +37,16 @@ class CrosscheckResult:
         }
 
 
-def _normalize_markers(markers: Iterable[str]) -> List[str]:
+def _normalize_markers(markers: Iterable[str]) -> list[str]:
     return sorted({m.upper().strip() for m in markers if isinstance(m, str) and m.strip()})
 
 
 def crosscheck_annotation(
-    annotation: Dict[str, Any],
+    annotation: dict[str, Any],
     marker_db: pd.DataFrame,
     *,
-    species: Optional[str] = None,
-    tissue: Optional[str] = None,
+    species: str | None = None,
+    tissue: str | None = None,
     min_support: int = 1,
 ) -> CrosscheckResult:
     """Compare a single annotation against the reference marker database."""
@@ -67,8 +68,8 @@ def crosscheck_annotation(
 
     target_df = marker_db[label_mask]
 
-    supporting: List[str] = []
-    contradictory: Dict[str, List[str]] = {}
+    supporting: list[str] = []
+    contradictory: dict[str, list[str]] = {}
 
     if not target_df.empty:
         target_markers = _normalize_markers(target_df["gene_symbol"].tolist())
@@ -95,7 +96,7 @@ def crosscheck_annotation(
         matches = target_df["ontology_id"].dropna().str.upper().str.strip()
         ontology_mismatch = matches.empty or ontology_id.upper().strip() not in set(matches)
 
-    notes: List[str] = []
+    notes: list[str] = []
     if not target_df.empty and not supporting:
         notes.append("Label present in DB but markers show no overlap")
     if not markers:
@@ -121,16 +122,16 @@ def crosscheck_annotation(
 
 
 def crosscheck_batch(
-    annotations: Iterable[Dict[str, Any]],
+    annotations: Iterable[dict[str, Any]],
     marker_db: pd.DataFrame,
     *,
-    species: Optional[str] = None,
-    tissue: Optional[str] = None,
+    species: str | None = None,
+    tissue: str | None = None,
     min_support: int = 1,
-) -> Dict[str, CrosscheckResult]:
+) -> dict[str, CrosscheckResult]:
     """Validate a sequence of annotations and return per-cluster result mapping."""
 
-    results: Dict[str, CrosscheckResult] = {}
+    results: dict[str, CrosscheckResult] = {}
     for annotation in annotations:
         cluster_id = str(annotation.get("cluster_id", "unknown"))
         result = crosscheck_annotation(

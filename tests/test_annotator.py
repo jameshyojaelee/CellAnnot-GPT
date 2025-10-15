@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
 
@@ -11,9 +11,9 @@ from config.settings import Settings
 
 
 class FakeCompletions:
-    def __init__(self, responses: List[Any]) -> None:
+    def __init__(self, responses: list[Any]) -> None:
         self._responses = responses
-        self.calls: List[Dict[str, Any]] = []
+        self.calls: list[dict[str, Any]] = []
 
     def create(self, **kwargs: Any) -> Any:
         self.calls.append(kwargs)
@@ -30,7 +30,7 @@ class FakeClient:
 
 class SleepRecorder:
     def __init__(self) -> None:
-        self.calls: List[float] = []
+        self.calls: list[float] = []
 
     def __call__(self, seconds: float) -> None:
         self.calls.append(seconds)
@@ -41,7 +41,11 @@ def build_choice(content: str) -> Any:
 
 
 def test_annotate_cluster_parses_json(monkeypatch: pytest.MonkeyPatch) -> None:
-    expected = {"primary_label": "B cell", "confidence": "High", "rationale": "Markers support B cell"}
+    expected = {
+        "primary_label": "B cell",
+        "confidence": "High",
+        "rationale": "Markers support B cell",
+    }
     fake_responses = [build_choice(json.dumps(expected))]
     completions = FakeCompletions(fake_responses)
     client = FakeClient(completions)
