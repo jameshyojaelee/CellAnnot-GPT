@@ -1,79 +1,70 @@
 # Benchmark Suite
 
-GPT Cell Annotator ships with a lightweight benchmark harness that evaluates the
-annotator against curated marker datasets and heuristic baselines. The suite is
-designed to run offline (mock mode) yet can leverage live LLM calls when API
-credentials are available.
+GPT Cell Annotator ships with a lightweight benchmark harness that evaluates annotation quality against curated marker datasets and heuristic baselines. Everything runs offline by default; provide an API key to compare mock vs live LLM performance.
+
+## Quickstart
+
+| Step | Command | Purpose |
+| --- | --- | --- |
+| 1. Build assets | `gca build-db --offline` | Ensures marker DB is present for retrieval + validation. |
+| 2. Run the full suite | `python scripts/run_benchmarks.py --mock` | Executes every dataset using the heuristic annotator. |
+| 3. Compare live vs mock | `OPENAI_API_KEY=... python scripts/run_benchmarks.py --datasets pbmc_small --models live,mock` | Benchmarks both modes on PBMC. |
+| 4. Inspect reports | `ls docs/reports/<timestamp>` | Review `summary.json` + per-dataset READMEs from the latest run. |
+
+Additional convenience commands:
+
+```bash
+# Poetry shortcut defined in pyproject.toml
+poetry run poe benchmarks
+
+# Store reports under a custom directory and restrict datasets/baselines
+python scripts/run_benchmarks.py \
+  --datasets pbmc_small,brain_cortex_small \
+  --baselines marker_overlap \
+  --output docs/reports/$(date +%Y%m%d-%H%M)
+```
 
 ## Datasets
 
-Metadata lives under `evaluation/datasets/`:
+Metadata lives under [`evaluation/datasets/`](../evaluation/datasets/):
 
 | Dataset | Description | Notes |
 | --- | --- | --- |
 | `pbmc_small` | Peripheral blood mononuclear cell toy subset (B vs T cells). | Derived from 10x Genomics PBMC 3k (CC BY 4.0). |
 | `brain_cortex_small` | Human cortex mini atlas (inhibitory/excitatory neurons + astrocytes). | Based on Darmanis et al. 2015 (CC BY 4.0). |
 | `lung_epithelial_small` | Airway epithelial trio (AT2, Club, Basal). | Adapted from Travaglini et al. 2020 (CC BY 4.0). |
+| `mouse_pbmc_small` | Mouse PBMC subset (B vs T cells; ortholog demo). | Adapted from 10x Genomics mouse PBMC (CC BY 4.0). |
 
-Each JSON file records the dataset context, citation, and a handful of clusters
-with canonical marker genes and ground-truth labels. Extend the suite by adding
-new JSON files and, optionally, preprocessing notebooks in
-`evaluation/datasets/<name>/`.
+Each JSON file records dataset context, citation, and clusters with canonical markers + ground truth labels. Extend the suite by adding new JSON files (and optional preprocessing notebooks) under `evaluation/datasets/<name>/`.
 
-## Running benchmarks
+## Output Structure
 
-```bash
-# Ensure marker DB is available
-python scripts/build_marker_db.py
+Benchmark runs emit timestamped directories under `docs/reports/`:
 
-# Run all datasets in mock mode
-python scripts/run_benchmarks.py --mock
+- `<dataset>/<model>/metrics.json` – accuracy, macro F1, top-3 recall, unknown rate, flag precision, and runtime metrics.
+- `<dataset>/<model>/predictions.json` – per-cluster outputs with rationale, confidence, and validation status.
+- `<dataset>/<model>/*.png` – confusion matrices, calibration plots, and marker overlap charts (generated when matplotlib is available).
+- `<dataset>/README.md` – human-readable summary comparing models on that dataset.
+- `summary.json` – aggregate metrics across datasets.
+- `history.csv` – append-only history suitable for dashboards.
 
-# Restrict to specific datasets and output dir
-python scripts/run_benchmarks.py \
-  --datasets pbmc_small,brain_cortex_small \
-  --output docs/reports \
-  --baselines marker_overlap
+Pair the reports with the UI or `docs/demo_assets/pbmc_annotation.json` for live walkthroughs.
 
-# Convenience task via Poe
-poetry run poe benchmarks
-```
+## Interpreting Metrics
 
-Outputs are written to `docs/reports/<timestamp>/` with the following structure:
+- **Accuracy / Macro F1** – ground-truth alignment across clusters.
+- **Top-3 recall** – likelihood the true label appears in the primary label or the top two alternatives.
+- **Unknown rate** – proportion of clusters flagged as `Unknown or Novel` after validation.
+- **Flag precision** – fraction of flagged clusters where the prediction disagreed with ground truth (higher is better).
+- **Time per cluster** – average runtime per cluster; compare live vs mock or alternative backends.
 
-- `<dataset>/<model>/metrics.json` – metrics per model (accuracy, macro F1, top-3
-  recall, unknown rate, flag precision, time per cluster).
-- `<dataset>/<model>/predictions.json` – per-cluster predictions with status and
-  confidence.
-- `<dataset>/<model>/*.png` – confusion matrix, precision/recall bars, and
-  calibration plots.
-- `<dataset>/README.md` – Markdown summary comparing models on that dataset.
-- `summary.json` – aggregate view across datasets.
-- `history.csv` – tabular archive suitable for dashboards.
+Use these figures to calibrate guardrails (see [`docs/operations.md`](docs/operations.md)) and to demonstrate gains over reference-based methods (see comparison in [`docs/why.md`](docs/why.md#state-of-the-field)).
 
-By default, the baseline is a marker-overlap heuristic derived from the marker
-database. Additional baselines can be registered by extending
-`evaluation/benchmark_runner.py` (e.g., wrapping CellTypist predictions once
-expression matrices are available).
+## Extending & Customising
 
-## Interpreting metrics
-
-- **Accuracy / Macro F1** – primary fidelity scores.
-- **Top-3 recall** – fraction of clusters where the ground truth appears within
-  the primary label plus the top two alternatives.
-- **Unknown rate** – share of clusters flagged as `Unknown or Novel`.
-- **Flag precision** – of flagged clusters, proportion where the predicted label
-  disagreed with ground truth (i.e., helpful warnings).
-- **Time per cluster** – average runtime, useful when comparing mock vs live LLM
-  runs.
-
-## Extending the suite
-
-1. Add a dataset JSON file with `dataset_name`, `dataset_context`, `clusters`,
-   and citation/licence fields.
-2. Implement or register new baselines in `evaluation/benchmark_runner.py`.
-3. Update this document with dataset descriptions.
-4. Optionally wire the benchmark into CI or nightly automation via the `poe`
-   task (see `pyproject.toml`).
+1. Add a dataset JSON file with `dataset_name`, `dataset_context`, `clusters`, and citation/licence fields.
+2. Implement additional baselines in [`evaluation/benchmark_runner.py`](../evaluation/benchmark_runner.py) (e.g., wrap CellTypist predictions).
+3. Register the baseline in `scripts/run_benchmarks.py` and update this doc’s dataset table.
+4. Wire the benchmark task into CI or nightly jobs via the `poe` task or a GitHub Actions workflow.
 
 Happy benchmarking!

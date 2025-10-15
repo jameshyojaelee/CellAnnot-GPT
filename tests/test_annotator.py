@@ -43,8 +43,13 @@ def build_choice(content: str) -> Any:
 def test_annotate_cluster_parses_json(monkeypatch: pytest.MonkeyPatch) -> None:
     expected = {
         "primary_label": "B cell",
+        "ontology_id": "CL:0000236",
         "confidence": "High",
         "rationale": "Markers support B cell",
+        "markers": ["MS4A1"],
+        "alternatives": [],
+        "caveats": None,
+        "evidence_sources": ["PanglaoDB"],
     }
     fake_responses = [build_choice(json.dumps(expected))]
     completions = FakeCompletions(fake_responses)
@@ -62,7 +67,8 @@ def test_annotate_cluster_parses_json(monkeypatch: pytest.MonkeyPatch) -> None:
     payload = {"cluster_id": "0", "markers": ["MS4A1"]}
     result = annotator.annotate_cluster(payload)
 
-    assert result == expected
+    for key, value in expected.items():
+        assert result.get(key) == value
     assert len(completions.calls) == 1
     assert recorder.calls == []
     assert completions.calls[0]["response_format"]["type"] == "json_schema"
@@ -73,8 +79,13 @@ def test_annotate_batch_retries_on_failure(monkeypatch: pytest.MonkeyPatch) -> N
     expected = {
         "0": {
             "primary_label": "T cell",
+            "ontology_id": "CL:0000625",
             "confidence": "Medium",
             "rationale": "Markers align with canonical T cell profile",
+            "markers": ["CD3E"],
+            "alternatives": [],
+            "caveats": None,
+            "evidence_sources": ["PanglaoDB"],
         }
     }
     fake_responses = [first_error, build_choice(json.dumps(expected))]
@@ -93,7 +104,8 @@ def test_annotate_batch_retries_on_failure(monkeypatch: pytest.MonkeyPatch) -> N
 
     result = annotator.annotate_batch([{"cluster_id": "0", "markers": ["CD3E"]}])
 
-    assert result == expected
+    for key, value in expected["0"].items():
+        assert result["0"].get(key) == value
     assert len(completions.calls) == 2  # retried once
     assert pytest.approx(recorder.calls[0], rel=1e-6) == 0.1
     assert completions.calls[1]["response_format"]["type"] == "json_schema"
@@ -149,3 +161,19 @@ def test_batch_schema_validation_fallback() -> None:
     assert isinstance(result["0"]["primary_label"], str)
     assert "warnings" in result["0"]
     assert any("LLM error" in warning for warning in result["0"]["warnings"])
+
+
+def test_prepare_cluster_payload_maps_cross_species() -> None:
+    settings = Settings(openai_api_key="", openai_requests_per_minute=0, rag_enabled=False)
+    annotator = Annotator(settings=settings)
+    enriched = annotator._prepare_cluster_payload(  # type: ignore[attr-defined]
+        {"cluster_id": "0", "markers": ["Ms4a1", "Cd79a"]},
+        {"species": "Mus musculus"},
+    )
+    assert [marker.upper() for marker in enriched.get("canonical_markers", [])] == [
+        "MS4A1",
+        "CD79A",
+    ]
+    assert enriched.get("_target_species").lower() == annotator._primary_species.lower()  # type: ignore[attr-defined]
+    mapping_notes = enriched.get("mapping_notes", [])
+    assert mapping_notes and mapping_notes[0]["target"] == "MS4A1"

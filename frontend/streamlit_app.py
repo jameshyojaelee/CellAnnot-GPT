@@ -289,6 +289,10 @@ def page_review_results() -> None:
     records = []
     for cluster in clusters:
         annotation = cluster.get("annotation", {})
+        mapping_notes = annotation.get("mapping_notes") or annotation.get("metadata", {}).get("mapping_notes", [])
+        mapping_summary = " | ".join(
+            f"{note.get('source', '?')}→{note.get('target') or 'unmapped'}" for note in mapping_notes
+        )
         records.append(
             {
                 "cluster_id": cluster["cluster_id"],
@@ -297,6 +301,9 @@ def page_review_results() -> None:
                 "status": cluster.get("status"),
                 "confidence": cluster.get("confidence"),
                 "warnings": " | ".join(cluster.get("warnings", [])),
+                "original_markers": ", ".join(annotation.get("original_markers", [])),
+                "canonical_markers": ", ".join(annotation.get("markers", [])),
+                "mapping": mapping_summary,
             }
         )
     csv_data = pd.DataFrame(records).to_csv(index=False).encode("utf-8")
@@ -333,7 +340,9 @@ def page_review_results() -> None:
         annotation = cluster.get("annotation", {})
         primary_label = annotation.get("primary_label", "Unknown")
         proposed_label = annotation.get("proposed_label")
-        markers = annotation.get("markers", [])
+        canonical_markers = annotation.get("markers", [])
+        original_markers = annotation.get("original_markers", canonical_markers)
+        mapping_notes = annotation.get("mapping_notes") or annotation.get("metadata", {}).get("mapping_notes", [])
         warnings = cluster.get("warnings", [])
         validation = cluster.get("validation")
         status = cluster.get("status", "supported").title()
@@ -349,15 +358,27 @@ def page_review_results() -> None:
             f"Cluster {cluster_id} → {title_label} ({status})",
             expanded=status != "Supported",
         ):
-            if markers:
+            if original_markers:
                 st.markdown(
-                    "**Markers:** " + format_marker_links(markers),
+                    "**Original markers:** " + format_marker_links(original_markers),
+                    unsafe_allow_html=True,
+                )
+            if canonical_markers and canonical_markers != original_markers:
+                st.markdown(
+                    "**Canonical markers (mapped to primary species):** "
+                    + format_marker_links(canonical_markers),
                     unsafe_allow_html=True,
                 )
             if confidence:
                 st.markdown(f"**Confidence:** {confidence}")
             if proposed_label and proposed_label != primary_label:
                 st.markdown(f"**Original suggestion:** {proposed_label}")
+            if mapping_notes:
+                mapping_display = "\n".join(
+                    f"• {note.get('source', '?')} → {note.get('target') or 'unmapped'}"
+                    for note in mapping_notes
+                )
+                st.info(f"Ortholog mapping applied:\n{mapping_display}")
             if warnings:
                 st.warning("\n".join(warnings))
             else:

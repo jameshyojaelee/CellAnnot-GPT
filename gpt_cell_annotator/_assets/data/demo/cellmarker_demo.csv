@@ -1,0 +1,3 @@
+cell_type,gene_symbol,tissue_type,species,pubmed_id
+T cell,CD3E,Blood,Homo sapiens,11111111
+NK cell,NKG7,Blood,Homo sapiens,22222222

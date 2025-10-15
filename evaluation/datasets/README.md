@@ -13,6 +13,7 @@ original atlases.
 | `pbmc_small.json` | Peripheral blood mononuclear cell toy subset (2 clusters). | Derived from 10x Genomics PBMC 3k, CC BY 4.0. |
 | `brain_cortex_small.json` | Miniature human cortex subset (inhibitory vs excitatory neurons). | Based on Darmanis et al. 2015, CC BY 4.0. |
 | `lung_epithelial_small.json` | Airway epithelial demo (AT2 vs Club cells). | Adapted from Travaglini et al. 2020, CC BY 4.0. |
+| `mouse_pbmc_small.json` | Mouse PBMC subset (B vs T; ortholog demo). | Adapted from 10x Genomics mouse PBMC, CC BY 4.0. |
 
 To add a new dataset:
 

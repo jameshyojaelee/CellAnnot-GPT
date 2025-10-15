@@ -1,0 +1,22 @@
+{
+  "dataset_name": "mouse_pbmc_small",
+  "license": "CC BY 4.0",
+  "citation": "Adapted from 10x Genomics PBMC mouse dataset.",
+  "notes": "Mouse immune subset demonstrating ortholog mapping (Ms4a1 → MS4A1, Cd3d → CD3D).",
+  "dataset_context": {
+    "species": "Mus musculus",
+    "tissue": "Peripheral blood"
+  },
+  "clusters": [
+    {
+      "cluster_id": "0",
+      "ground_truth": "B cell",
+      "markers": ["Ms4a1", "Cd79a"]
+    },
+    {
+      "cluster_id": "1",
+      "ground_truth": "T cell",
+      "markers": ["Cd3d", "Cd3e"]
+    }
+  ]
+}

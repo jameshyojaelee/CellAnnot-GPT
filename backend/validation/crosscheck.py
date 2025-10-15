@@ -138,6 +138,7 @@ def crosscheck_annotation(
         notes.append("No marker entries for requested tissue")
     if not ontology_id:
         notes.append("Ontology identifier missing from annotation")
+        flag_reasons.append("missing_ontology_id")
 
     support_count = len(supporting)
     if support_count < min_support:
@@ -146,8 +147,6 @@ def crosscheck_annotation(
         flag_reasons.append("contradictory_markers")
     if ontology_mismatch:
         flag_reasons.append("ontology_mismatch")
-    if not ontology_id:
-        flag_reasons.append("missing_ontology_id")
 
     is_supported = (
         support_count >= max(min_support, 1)

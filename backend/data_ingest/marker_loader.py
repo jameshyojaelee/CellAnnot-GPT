@@ -33,6 +33,8 @@ import httpx
 import pandas as pd
 import yaml
 
+from gpt_cell_annotator import assets
+
 logger = logging.getLogger("gpt_cell_annotator.data_ingest")
 
 NORMALIZED_COLUMNS = [
@@ -423,7 +425,20 @@ def load_sources_from_yaml(path: Path) -> list[SourceConfig]:
 def default_sources(config_path: Path | None = None) -> list[SourceConfig]:
     if config_path:
         return load_sources_from_yaml(config_path)
-    return []
+    try:
+        bundled = assets.resolve_path("config/marker_sources.yaml")
+    except FileNotFoundError:
+        return []
+    # Ensure demo files are available when relying on bundled config.
+    assets.ensure_demo_files()
+    sources = load_sources_from_yaml(bundled)
+    for cfg in sources:
+        if cfg.local_path and not cfg.local_path.exists():
+            try:
+                cfg.local_path = assets.resolve_path(cfg.local_path.as_posix())
+            except FileNotFoundError:
+                continue
+    return sources
 
 
 __all__ = [

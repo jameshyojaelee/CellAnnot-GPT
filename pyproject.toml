@@ -4,11 +4,37 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "gpt-cell-annotator"
-version = "0.1.0"
+version = "0.2.0"
 description = "AI assistant for annotating single-cell RNA-seq clusters using curated marker knowledge and LLM reasoning."
-authors = [ "Your Name <you@example.com>",]
+authors = [ "GPT Cell Annotator Team <maintainers@gptca.dev>",]
+license = "MIT"
 readme = "README.md"
-package-mode = false
+homepage = "https://github.com/your-org/GPT-cell-annotator"
+repository = "https://github.com/your-org/GPT-cell-annotator"
+keywords = [ "single-cell", "bioinformatics", "annotation", "machine-learning",]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+package-mode = true
+packages = [
+    { include = "gpt_cell_annotator" },
+    { include = "backend" },
+    { include = "config" },
+    { include = "schemas" },
+    { include = "frontend" },
+]
+include = [
+    { path = "gpt_cell_annotator/_assets/**/*", format = [ "sdist", "wheel" ] },
+]
+
+[tool.poetry.scripts]
+gca = "gpt_cell_annotator.cli:main"
 
 [tool.black]
 line-length = 100
@@ -36,9 +62,6 @@ openai = "^1.30.0"
 pandas = "^2.2.2"
 numpy = "^1.26.4"
 anndata = "^0.10.7"
-fastapi = "^0.116.0"
-starlette = "^0.47.2"
-streamlit = "^1.36.0"
 scikit-learn = "^1.5.0"
 rich = "^13.7.1"
 pydantic = "^2.7.1"
@@ -47,14 +70,23 @@ httpx = "^0.27.0"
 sqlalchemy = "^2.0.30"
 python-dotenv = "^1.0.1"
 pyarrow = "^16.1.0"
-redis = "^5.0.4"
-altair = "^5.3.0"
-fpdf2 = "^2.7.0"
 structlog = "^24.1.0"
 jsonschema = "^4.25.0"
-scanpy = "^1.10.1"
-matplotlib = "^3.9.0"
-seaborn = "^0.13.2"
+fastapi = { version = "^0.116.0", optional = true }
+streamlit = { version = "^1.36.0", optional = true }
+redis = { version = "^5.0.4", optional = true }
+altair = { version = "^5.3.0", optional = true }
+fpdf2 = { version = "^2.7.0", optional = true }
+scanpy = { version = "^1.10.1", optional = true }
+matplotlib = { version = "^3.9.0", optional = true }
+seaborn = { version = "^0.13.2", optional = true }
+uvicorn = { version = "^0.30.1", extras = [ "standard" ], optional = true }
+
+[tool.poetry.extras]
+api = [ "fastapi", "uvicorn", "redis" ]
+ui = [ "streamlit", "altair", "fpdf2", "matplotlib", "seaborn" ]
+scanpy = [ "scanpy" ]
+full = [ "fastapi", "uvicorn", "redis", "streamlit", "altair", "fpdf2", "matplotlib", "seaborn", "scanpy" ]
 
 [tool.ruff.lint]
 select = [ "E", "F", "B", "I", "UP", "N", "RUF",]
@@ -69,10 +101,6 @@ pythonpath = [ ".",]
 [tool.poe.tasks]
 install = "poetry install"
 lock = "poetry lock"
-
-[tool.poetry.dependencies.uvicorn]
-version = "^0.30.1"
-extras = [ "standard",]
 
 [tool.poe.tasks.format]
 cmd = "black backend frontend evaluation scripts config tests"

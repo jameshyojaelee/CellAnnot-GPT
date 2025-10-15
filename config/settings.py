@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     rag_cache_size: int = Field(default=256, ge=0)
     synonym_config_path: str = Field(default="config/gene_synonyms.json")
     synonym_enable_orthologs: bool = Field(default=True)
+    ortholog_mapping_path: str = Field(default="data/orthologs/human_mouse.tsv")
+    kb_primary_species: str = Field(default="Homo sapiens")
 
     class Config:
         env_file = ".env"

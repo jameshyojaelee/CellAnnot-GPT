@@ -25,10 +25,32 @@
 - Add SLO dashboards (Grafana) fed by metrics and logs.
 - Automate synthetic probes to verify health endpoints.
 
-## Quality & Validation
-- **Marker overlap threshold:** set `VALIDATION_MIN_MARKER_OVERLAP` (defaults to 2) to require a minimum number of shared markers before a label is considered supported. Failing clusters are automatically downgraded to `Unknown or Novel` when `VALIDATION_FORCE_UNKNOWN_ON_FAIL` is left enabled.
-- **Confidence calibration:** confidence bands are recalculated from marker overlap counts using `CONFIDENCE_OVERLAP_MEDIUM` / `CONFIDENCE_OVERLAP_HIGH`. Overly optimistic LLM scores are downgraded based on these thresholds.
-- **Flag reasons:** validation output includes machine- and human-readable reasons such as `low_marker_overlap`, `species_mismatch`, and `missing_ontology_id`. The UI surfaces these reasons and metrics under “Flagged reasons”.
-- **Original suggestions:** when a cluster is flagged, the report retains `annotation.proposed_label` alongside the downgraded `primary_label` so reviewers can still inspect the model’s initial suggestion.
-- **Schema enforcement:** the LLM response schema requires ontology identifiers and marker lists. Validation failures issue structured logs containing trace IDs for easier troubleshooting.
-- **Retrieval augmentation:** control prompt-time candidate injection via `RAG_ENABLED`, `RAG_TOP_K`, and `RAG_MIN_OVERLAP`. Set `SYNONYM_CONFIG_PATH` to customise alias/ortholog resolution; disable with `SYNONYM_ENABLE_ORTHOLOGS=false` for debugging.
+## Validation Guardrails
+
+Validation runs after every annotation (CLI, API, notebooks) and governs which labels are promoted, downgraded, or flagged for review.
+
+### Core thresholds
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `VALIDATION_MIN_MARKER_OVERLAP` | `2` | Minimum shared markers between prediction and marker DB to remain “supported”. |
+| `VALIDATION_FORCE_UNKNOWN_ON_FAIL` | `true` | Downgrades clusters with insufficient evidence to `Unknown or Novel`. |
+| `CONFIDENCE_OVERLAP_MEDIUM` / `CONFIDENCE_OVERLAP_HIGH` | `2` / `3` | Translate overlap counts into `Low`, `Medium`, `High` confidence bands. |
+
+Set these in `.env` (loaded by `config/settings.py`) or export them before starting the API/CLI (`VALIDATION_MIN_MARKER_OVERLAP=3 gca annotate ...`).
+
+### Status & warnings
+
+- `supported`: Validation thresholds met; status is reflected in `_status` columns and reports.
+- `flagged_low_support`, `flagged_species_mismatch`, `flagged_missing_ontology`, etc.: Stored in `annotation.warnings` and surfaced by the Streamlit UI.
+- `annotation.proposed_label`: Original LLM suggestion retained even when the primary label is downgraded.
+
+Structured logs contain the `trace_id`, `cluster_id`, and warning codes—ideal for alerting or audit pipelines.
+
+### Retrieval and synonym controls
+
+- `RAG_ENABLED` / `RAG_TOP_K` / `RAG_MIN_OVERLAP` tune the retrieval candidates added to prompts.
+- `SYNONYM_CONFIG_PATH` and `ORTHOLOG_MAPPING_PATH` point to custom synonym/ortholog files.
+- `SYNONYM_ENABLE_ORTHOLOGS=false` disables cross-species expansion for debugging.
+
+Monitor the effect of these settings via `docs/benchmarks.md` reports and the CLI smoke tests in `tests/test_cli.py`.

@@ -32,6 +32,7 @@ def test_build_report_for_single_cluster():
     annotation = {
         "cluster_id": "single",
         "primary_label": "B cell",
+        "ontology_id": "CL:0000236",
         "confidence": "High",
         "rationale": "MS4A1 matches B cell markers",
         "markers": ["MS4A1"],

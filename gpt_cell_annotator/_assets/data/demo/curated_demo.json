@@ -1,0 +1,11 @@
+[
+  {
+    "cell_type": "Plasma cell",
+    "ontology_id": "CL:0000786",
+    "gene_symbol": "SDC1",
+    "species": "Homo sapiens",
+    "tissue": "Blood",
+    "evidence": "Demo curated entry",
+    "reference": "https://demo.local/plasma"
+  }
+]

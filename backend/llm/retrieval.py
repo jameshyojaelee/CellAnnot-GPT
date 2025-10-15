@@ -10,6 +10,7 @@ from typing import Iterable, Sequence
 
 from backend.util.gene_normalization import get_gene_normalizer
 from config.settings import get_settings
+from gpt_cell_annotator import assets
 
 
 @dataclass(frozen=True)
@@ -118,12 +119,27 @@ class MarkerRetriever:
 @lru_cache(maxsize=1)
 def get_retriever() -> MarkerRetriever | None:
     settings = get_settings()
-    sqlite_path = Path(settings.data_dir) / "marker_db.sqlite"
+    data_dir = Path(settings.data_dir)
+    sqlite_path = data_dir / "marker_db.sqlite"
+
     if not sqlite_path.exists():
-        sqlite_path = Path("data/processed/marker_db.sqlite")
-    if not sqlite_path.exists():
+        assets.ensure_marker_database(target_dir=data_dir)
+        sqlite_path = data_dir / "marker_db.sqlite"
+
+    if sqlite_path.exists():
+        return MarkerRetriever(sqlite_path)
+
+    try:
+        packaged_dir = assets.ensure_marker_database()
+    except FileNotFoundError:
         return None
-    return MarkerRetriever(sqlite_path)
+    fallback_path = packaged_dir / "marker_db.sqlite"
+    if not fallback_path.exists():
+        return None
+    data_dir.mkdir(parents=True, exist_ok=True)
+    sqlite_target = data_dir / "marker_db.sqlite"
+    sqlite_target.write_bytes(fallback_path.read_bytes())
+    return MarkerRetriever(sqlite_target)
 
 
 def retrieve_candidates(

@@ -10,9 +10,9 @@ services:
       - .env
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - GPT_CELL_ANNOTATOR_DATA_DIR=/data
+    command: ["api", "--offline"]
     volumes:
-      - ./data/processed:/data
+      - ./data:/data
     depends_on:
       - redis
   redis:

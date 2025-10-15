@@ -109,17 +109,23 @@ async def annotate_cluster(
         logger.exception("Annotation failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    metadata = result.get("metadata", {})
+    canonical_markers = metadata.get("canonical_markers")
+    mapping_notes = metadata.get("mapping_notes", [])
     annotation_record = {
         **result,
         "cluster_id": payload.cluster.cluster_id,
-        "markers": payload.cluster.markers,
+        "markers": canonical_markers or payload.cluster.markers,
+        "original_markers": payload.cluster.markers,
+        "mapping_notes": mapping_notes,
     }
 
     if payload.return_validated:
         crosschecked = crosscheck_batch(
             [annotation_record],
             marker_db,
-            species=(payload.dataset_context.species if payload.dataset_context else None),
+            species=metadata.get("target_species")
+            or (payload.dataset_context.species if payload.dataset_context else None),
             tissue=(payload.dataset_context.tissue if payload.dataset_context else None),
             min_support=settings.validation_min_marker_overlap,
         )
@@ -184,20 +190,29 @@ async def annotate_batch(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     annotations = []
+    target_species_override: str | None = None
     for cluster in payload.clusters:
         cluster_result = result.get(str(cluster.cluster_id)) or {}
+        metadata = cluster_result.get("metadata", {})
+        canonical_markers = metadata.get("canonical_markers")
+        mapping_notes = metadata.get("mapping_notes", [])
+        if metadata.get("target_species"):
+            target_species_override = metadata.get("target_species")
         annotations.append(
             {
                 **cluster_result,
                 "cluster_id": cluster.cluster_id,
-                "markers": cluster.markers,
+                "markers": canonical_markers or cluster.markers,
+                "original_markers": cluster.markers,
+                "mapping_notes": mapping_notes,
             }
         )
 
     crosschecked = crosscheck_batch(
         annotations,
         marker_db,
-        species=(payload.dataset_context.species if payload.dataset_context else None),
+        species=target_species_override
+        or (payload.dataset_context.species if payload.dataset_context else None),
         tissue=(payload.dataset_context.tissue if payload.dataset_context else None),
         min_support=settings.validation_min_marker_overlap,
     )

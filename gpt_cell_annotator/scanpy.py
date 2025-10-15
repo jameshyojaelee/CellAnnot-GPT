@@ -17,6 +17,7 @@ from backend.llm.annotator import Annotator
 from backend.validation.crosscheck import crosscheck_batch
 from backend.validation.report import DatasetReport, build_structured_report
 from config.settings import get_settings
+from gpt_cell_annotator import assets
 
 try:  # Optional dependency; only needed when we must compute marker rankings.
     import scanpy as sc
@@ -98,7 +99,16 @@ def _extract_markers(adata: AnnData, cluster_key: str, top_n_markers: int) -> di
 def _load_marker_db(marker_db: pd.DataFrame | None, marker_db_path: Path | None) -> pd.DataFrame:
     if marker_db is not None:
         return marker_db[MARKER_DB_COLUMNS]
-    path = marker_db_path or Path("data/processed/marker_db.parquet")
+    if marker_db_path is not None:
+        path = Path(marker_db_path)
+    else:
+        settings = get_settings()
+        data_dir = Path(settings.data_dir)
+        path = data_dir / "marker_db.parquet"
+        if not path.exists():
+            path = assets.ensure_marker_database(target_dir=data_dir) / "marker_db.parquet"
+    if not path.exists():
+        path = assets.ensure_marker_database() / "marker_db.parquet"
     df = pd.read_parquet(path)
     return df[MARKER_DB_COLUMNS]
 
@@ -179,9 +189,20 @@ def annotate_anndata(
     rationale_col = f"{result_prefix}_rationale"
     ontology_col = f"{result_prefix}_ontology_id"
     proposed_col = f"{result_prefix}_proposed_label"
+    canonical_col = f"{result_prefix}_canonical_markers"
+    mapping_col = f"{result_prefix}_mapping_notes"
 
     clusters_index = _build_cluster_index(adata.obs[cluster_key].astype(str))
-    for column in [label_col, proposed_col, confidence_col, status_col, rationale_col, ontology_col]:
+    for column in [
+        label_col,
+        proposed_col,
+        confidence_col,
+        status_col,
+        rationale_col,
+        ontology_col,
+        canonical_col,
+        mapping_col,
+    ]:
         adata.obs[column] = pd.Series(
             ["" for _ in range(adata.n_obs)],
             index=adata.obs.index,
@@ -198,6 +219,11 @@ def annotate_anndata(
         rationale = annotation.get("rationale")
         ontology = annotation.get("ontology_id")
         proposed_label = annotation.get("proposed_label")
+        canonical_markers = ", ".join(annotation.get("markers", []))
+        mapping_notes = annotation.get("mapping_notes", [])
+        mapping_display = " | ".join(
+            f"{note.get('source', '?')}→{note.get('target') or 'unmapped'}" for note in mapping_notes
+        )
         for obs_idx in obs_indices:
             adata.obs.at[obs_idx, label_col] = (label or "")
             adata.obs.at[obs_idx, proposed_col] = (proposed_label or "")
@@ -205,6 +231,8 @@ def annotate_anndata(
             adata.obs.at[obs_idx, status_col] = (status or "")
             adata.obs.at[obs_idx, rationale_col] = (rationale or "")
             adata.obs.at[obs_idx, ontology_col] = (ontology or "")
+            adata.obs.at[obs_idx, canonical_col] = canonical_markers
+            adata.obs.at[obs_idx, mapping_col] = mapping_display
 
     return adata, report
 
@@ -232,6 +260,12 @@ def _report_to_dataframe(report: dict[str, Any]) -> pd.DataFrame:
             }
         )
     return pd.DataFrame.from_records(records)
+
+
+def report_to_dataframe(report: dict[str, Any]) -> pd.DataFrame:
+    """Return a pandas DataFrame summarising the cluster-level report."""
+
+    return _report_to_dataframe(report)
 
 
 def _build_parser() -> argparse.ArgumentParser:

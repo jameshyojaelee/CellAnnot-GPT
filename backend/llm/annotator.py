@@ -19,6 +19,7 @@ from openai import OpenAI
 
 from backend.llm import prompts
 from backend.llm.retrieval import retrieve_candidates
+from backend.util.gene_normalization import get_gene_normalizer
 from config.settings import Settings, get_settings
 
 logger = logging.getLogger("gpt_cell_annotator.llm")
@@ -174,12 +175,18 @@ class Annotator:
         *,
         client: OpenAI | None = None,
         mock_backend: MockAnnotator | None = None,
+        force_mock: bool = False,
     ) -> None:
         self.settings = settings or get_settings()
         self._mock_backend = mock_backend or MockAnnotator()
         self._client: OpenAI | None
+        self._gene_normalizer = get_gene_normalizer()
+        self._primary_species = self._gene_normalizer.primary_species
+        self._force_mock = force_mock
 
-        if client is not None:
+        if force_mock:
+            self._client = None
+        elif client is not None:
             self._client = client
         elif self.settings.openai_api_key:
             self._client = OpenAI(api_key=self.settings.openai_api_key)
@@ -188,10 +195,15 @@ class Annotator:
 
         self._mode = "live" if self._client is not None else "mock"
         if self._mode == "mock":
-            logger.warning(
-                "OPENAI_API_KEY not configured; using heuristic MockAnnotator. "
-                "Outputs are suitable for demos only."
-            )
+            if self._force_mock:
+                logger.info(
+                    "Running Annotator in offline mock mode; external LLM calls are disabled."
+                )
+            else:
+                logger.warning(
+                    "OPENAI_API_KEY not configured; using heuristic MockAnnotator. "
+                    "Outputs are suitable for demos only."
+                )
 
         self._min_interval = (
             0.0
@@ -259,7 +271,10 @@ class Annotator:
         )
 
         if self._mode == "mock" or self._client is None:
-            return self._mock_backend.annotate_cluster(enriched_payload, dataset_context)
+            return self._mock_backend.annotate_cluster(
+                self._mock_payload(enriched_payload),
+                dataset_context,
+            )
 
         self._log_request("annotate_cluster", enriched_payload, dataset_context)
         messages = [
@@ -281,10 +296,21 @@ class Annotator:
             result = self._parse_json(raw, context="annotate_cluster")
             self._validate_annotation_payload(result)
             self._log_response("annotate_cluster", result)
+            mapping_notes = enriched_payload.get("mapping_notes", [])
+            if mapping_notes:
+                metadata = result.setdefault("metadata", {})
+                metadata["mapping_notes"] = mapping_notes
+                metadata["canonical_markers"] = enriched_payload.get("canonical_markers")
+                metadata["target_species"] = enriched_payload.get("_target_species")
+                metadata["mapping_applied"] = enriched_payload.get("_mapping_applied")
+                metadata["original_markers"] = enriched_payload.get("original_markers")
             return result
         except (AnnotationError, SchemaValidationError) as exc:
             logger.warning("annotate_cluster falling back to heuristics: %s", exc)
-            fallback = self._mock_backend.annotate_cluster(enriched_payload, dataset_context)
+            fallback = self._mock_backend.annotate_cluster(
+                self._mock_payload(enriched_payload),
+                dataset_context,
+            )
             self._append_warning(fallback, f"Mock annotator used due to LLM error: {exc}")
             return fallback
 
@@ -295,13 +321,15 @@ class Annotator:
     ) -> dict[str, Any]:
         """Annotate multiple clusters in one call."""
 
-        if self._mode == "mock" or self._client is None:
-            return self._mock_backend.annotate_batch(clusters, dataset_context)
-
         enriched_clusters = [
             self._prepare_cluster_payload(cluster, dataset_context)
             for cluster in clusters
         ]
+        if self._mode == "mock" or self._client is None:
+            return self._mock_backend.annotate_batch(
+                [self._mock_payload(cluster) for cluster in enriched_clusters],
+                dataset_context,
+            )
         self._log_request("annotate_batch", enriched_clusters, dataset_context)
         messages = [
             {"role": "system", "content": prompts.build_system_prompt()},
@@ -319,10 +347,23 @@ class Annotator:
             result = self._parse_json(raw, context="annotate_batch")
             self._validate_batch_payload(result)
             self._log_response("annotate_batch", result)
+            for original_cluster, enriched in zip(clusters, enriched_clusters):
+                cluster_id = str(original_cluster.get("cluster_id"))
+                metadata = result.setdefault(cluster_id, {}).setdefault("metadata", {})
+                if enriched.get("mapping_notes"):
+                    metadata["mapping_notes"] = enriched.get("mapping_notes")
+                if enriched.get("canonical_markers"):
+                    metadata["canonical_markers"] = enriched.get("canonical_markers")
+                metadata["target_species"] = enriched.get("_target_species")
+                metadata["mapping_applied"] = enriched.get("_mapping_applied")
+                metadata["original_markers"] = enriched.get("original_markers")
             return result
         except (AnnotationError, SchemaValidationError) as exc:
             logger.warning("annotate_batch falling back to heuristics: %s", exc)
-            fallback = self._mock_backend.annotate_batch(enriched_clusters, dataset_context)
+            fallback = self._mock_backend.annotate_batch(
+                [self._mock_payload(cluster) for cluster in enriched_clusters],
+                dataset_context,
+            )
             for cluster_result in fallback.values():
                 self._append_warning(cluster_result, f"Mock annotator used due to LLM error: {exc}")
             return fallback
@@ -384,6 +425,14 @@ class Annotator:
         else:
             annotation["warnings"] = [message]
 
+    @staticmethod
+    def _mock_payload(cluster_payload: dict[str, Any]) -> dict[str, Any]:
+        mock_payload = dict(cluster_payload)
+        canonical = cluster_payload.get("canonical_markers")
+        if canonical:
+            mock_payload["markers"] = canonical
+        return mock_payload
+
     def _prepare_cluster_payload(
         self,
         cluster_payload: dict[str, Any],
@@ -391,23 +440,55 @@ class Annotator:
     ) -> dict[str, Any]:
         payload = dict(cluster_payload)
         context = dataset_context or {}
-        if not self.settings.rag_enabled:
-            return payload
         species = context.get("species") if isinstance(context, dict) else None
         tissue = context.get("tissue") if isinstance(context, dict) else None
-        markers = payload.get("markers") or []
-        candidates = retrieve_candidates(markers, species=species, tissue=tissue)
-        if candidates:
-            payload["retrieved_candidates"] = [
-                {
-                    "cell_type": candidate.cell_type,
-                    "ontology_id": candidate.ontology_id,
-                    "overlap": candidate.overlap,
-                    "supporting_markers": candidate.supporting_markers,
-                    "tissue_counts": candidate.tissue_counts,
-                }
-                for candidate in candidates
-            ]
+
+        original_markers = [
+            marker
+            for marker in (payload.get("markers") or [])
+            if isinstance(marker, str) and marker.strip()
+        ]
+        payload.setdefault("markers", original_markers)
+        payload["original_markers"] = list(original_markers)
+
+        canonical_markers, mapping_notes = self._gene_normalizer.map_to_primary(
+            original_markers,
+            species,
+        )
+        mapping_applied = bool(mapping_notes) or (
+            species and species.lower() != self._primary_species.lower()
+        )
+        target_species = (
+            self._primary_species
+            if species and species.lower() != self._primary_species.lower()
+            else (species or self._primary_species)
+        )
+
+        payload["canonical_markers"] = canonical_markers or original_markers
+        payload["mapping_notes"] = mapping_notes
+        payload["_mapping_notes"] = mapping_notes
+        payload["_mapping_applied"] = mapping_applied
+        payload["_target_species"] = target_species
+
+        markers_for_retrieval = payload["canonical_markers"] or original_markers
+
+        if self.settings.rag_enabled:
+            candidates = retrieve_candidates(
+                markers_for_retrieval,
+                species=target_species,
+                tissue=tissue,
+            )
+            if candidates:
+                payload["retrieved_candidates"] = [
+                    {
+                        "cell_type": candidate.cell_type,
+                        "ontology_id": candidate.ontology_id,
+                        "overlap": candidate.overlap,
+                        "supporting_markers": candidate.supporting_markers,
+                        "tissue_counts": candidate.tissue_counts,
+                    }
+                    for candidate in candidates
+                ]
         return payload
 
     def _log_request(
