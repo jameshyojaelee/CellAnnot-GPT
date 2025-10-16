@@ -99,7 +99,7 @@ def install_asset(relative_path: str | Path, *, home: Path | None = None, overwr
     except FileNotFoundError as exc:  # pragma: no cover - defensive
         raise AssetNotFoundError(rel) from exc
 
-    if not asset.exists():
+    if not (asset.is_file() or asset.is_dir()):
         raise AssetNotFoundError(rel)
 
     if asset.is_dir():

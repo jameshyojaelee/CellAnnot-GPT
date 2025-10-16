@@ -57,6 +57,17 @@ mypy_path = "$PROJECT_ROOT"
 module = [ "pandas", "pandas.*", "yaml", "yaml.*", "jsonschema", "jsonschema.*",]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = [
+    "anndata",
+    "anndata.*",
+    "scanpy",
+    "scanpy.*",
+    "prometheus_client",
+    "prometheus_client.*",
+]
+ignore_missing_imports = true
+
 [tool.poetry.dependencies]
 python = "^3.11"
 openai = "^1.30.0"

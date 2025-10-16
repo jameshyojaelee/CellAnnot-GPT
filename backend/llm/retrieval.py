@@ -22,6 +22,15 @@ class RetrievalCandidate:
     tissue_counts: dict[str, int]
 
 
+@dataclass
+class _CellTypeAggregate:
+    """Temporary aggregation bucket while computing retrieval candidates."""
+
+    ontology_id: str | None
+    genes: set[str]
+    tissue_counts: dict[str, int]
+
+
 class MarkerRetriever:
     """Query the marker sqlite database for overlapping cell types."""
 
@@ -80,35 +89,37 @@ class MarkerRetriever:
         if not rows:
             return []
 
-        counts: dict[str, dict[str, object]] = {}
+        counts: dict[str, _CellTypeAggregate] = {}
         for cell_type, ontology_id, gene_symbol, tissue_value in rows:
             cell_key = cell_type or "Unknown"
-            entry = counts.setdefault(
-                cell_key,
-                {
-                    "ontology_id": ontology_id or None,
-                    "genes": set(),
-                    "tissue_counts": {},
-                },
-            )
-            entry["genes"].add(str(gene_symbol).upper())
-            tissues = entry["tissue_counts"]
+            entry = counts.get(cell_key)
+            if entry is None:
+                entry = _CellTypeAggregate(
+                    ontology_id=ontology_id or None,
+                    genes=set(),
+                    tissue_counts={},
+                )
+                counts[cell_key] = entry
+            elif entry.ontology_id is None and ontology_id:
+                entry.ontology_id = ontology_id
+
+            entry.genes.add(str(gene_symbol).upper())
             tissue_key = (tissue_value or "unspecified").lower()
-            tissues[tissue_key] = tissues.get(tissue_key, 0) + 1
+            entry.tissue_counts[tissue_key] = entry.tissue_counts.get(tissue_key, 0) + 1
 
         candidates: list[RetrievalCandidate] = []
         for cell_type, info in counts.items():
-            supporting_genes = sorted(info["genes"])
+            supporting_genes = sorted(info.genes)
             overlap = len(supporting_genes)
             if overlap < min_overlap:
                 continue
             candidates.append(
                 RetrievalCandidate(
                     cell_type=cell_type,
-                    ontology_id=info["ontology_id"],
+                    ontology_id=info.ontology_id,
                     overlap=overlap,
                     supporting_markers=supporting_genes,
-                    tissue_counts=dict(info["tissue_counts"]),
+                    tissue_counts=dict(info.tissue_counts),
                 )
             )
 

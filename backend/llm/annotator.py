@@ -15,7 +15,7 @@ try:  # structlog is optional in certain environments (e.g., tests)
     from structlog.contextvars import get_contextvars
 except ImportError:  # pragma: no cover - fallback when structlog not available
 
-    def get_contextvars() -> dict[str, Any]:  # type: ignore[name-defined]
+    def get_contextvars() -> dict[str, Any]:
         return {}
 
 

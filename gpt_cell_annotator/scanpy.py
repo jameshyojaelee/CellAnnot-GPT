@@ -12,7 +12,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Any, NamedTuple, Protocol
+from typing import Any, Callable, NamedTuple, Protocol, cast
 from uuid import uuid4
 
 import anndata as ad
@@ -41,7 +41,7 @@ try:  # Prefer structlog for telemetry; fall back to stdlib logging otherwise.
 
 
 except ImportError:  # pragma: no cover - structlog is an optional extra at runtime.
-    structlog = None  # type: ignore
+    structlog = cast(Any, None)
     _logger = logging.getLogger("gpt_cell_annotator.scanpy")
 
     def _log(event: str, /, **fields: Any) -> None:
@@ -51,7 +51,7 @@ except ImportError:  # pragma: no cover - structlog is an optional extra at runt
 try:  # Optional metrics sink for extras[gca,api]
     from prometheus_client import Counter, Histogram
 except ImportError:  # pragma: no cover - optional dependency
-    Counter = Histogram = None  # type: ignore
+    Counter = Histogram = None
 
 
 MARKER_DB_COLUMNS = [
@@ -141,9 +141,12 @@ class DiskAnnotationCache:
     @staticmethod
     def _read(path: Path) -> dict[str, Any] | None:
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            loaded: Any = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return None
+        if isinstance(loaded, dict):
+            return loaded
+        return None
 
     @staticmethod
     def _write(path: Path, value: dict[str, Any]) -> None:
@@ -278,10 +281,10 @@ def _markers_from_rankings(
 ) -> dict[str, list[str]]:
     if isinstance(rankings, np.ndarray) and rankings.dtype.names:
         groups = rankings.dtype.names
-        derived: dict[str, list[str]] = {}
+        structured: dict[str, list[str]] = {}
         for group in groups:
-            derived[str(group)] = _unique_ordered(rankings[group][:top_n_markers])
-        return derived
+            structured[str(group)] = _unique_ordered(rankings[group][:top_n_markers])
+        return structured
 
     if isinstance(rankings, Mapping):
         derived: dict[str, list[str]] = {}
@@ -305,7 +308,7 @@ def _extract_markers(adata: AnnData, cluster_key: str, top_n_markers: int) -> di
 def _build_cluster_index(cluster_series: pd.Series) -> dict[str, list[str]]:
     mapping: dict[str, list[str]] = {}
     for obs_idx, cluster_id in cluster_series.items():
-        mapping.setdefault(str(cluster_id), []).append(obs_idx)
+        mapping.setdefault(str(cluster_id), []).append(str(obs_idx))
     return mapping
 
 
@@ -906,18 +909,18 @@ def validate_anndata(
 
     cluster_markers = _extract_markers(adata, cluster_key, top_n_markers)
     label_mapping = _cluster_labels_from_obs(adata, cluster_key, label_column)
-    ontology_mapping = (
-        _cluster_labels_from_obs(adata, cluster_key, ontology_column) if ontology_column else {}
-    )
+    ontology_mapping: dict[str, str] = {}
+    if ontology_column is not None:
+        ontology_mapping = _cluster_labels_from_obs(adata, cluster_key, ontology_column)
 
     annotations: list[dict[str, Any]] = []
     for cluster_id, markers in cluster_markers.items():
-        annotation = {
+        annotation: dict[str, Any] = {
             "cluster_id": cluster_id,
             "markers": markers,
             "primary_label": label_mapping.get(cluster_id, "Unknown or Novel"),
         }
-        if ontology_column:
+        if ontology_column is not None:
             annotation["ontology_id"] = ontology_mapping.get(cluster_id)
         annotations.append(annotation)
 
@@ -1261,7 +1264,8 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    return args.func(args)
+    command = cast(Callable[[argparse.Namespace], int], args.func)
+    return command(args)
 
 
 __all__ = [
