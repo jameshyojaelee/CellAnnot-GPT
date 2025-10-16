@@ -1,0 +1,37 @@
+template:
+  package: pkgdown
+  bootstrap: 5
+
+home:
+  title: GPT Cell Annotator for R
+  description: >
+    R interface to the GPT Cell Annotator backend with Seurat integration,
+    validation guardrails, and offline CLI support.
+
+navbar:
+  structure:
+    left: [intro, reference, articles]
+    right: [github]
+  components:
+    github:
+      icon: fab fa-github
+      href: https://github.com/.../GPT-cell-annotator
+
+reference:
+  - title: Configuration
+    contents:
+      - gptca_config
+      - gptca_config_set
+      - gptca_config_get
+      - gptca_config_reset
+  - title: Annotation
+    contents:
+      - gptca_annotate_markers
+      - gptca_annotate_seurat
+      - gptca_add_metadata
+      - gptca_plot_umap
+
+articles:
+  - title: Guides
+    contents:
+      - annotate-seurat

@@ -1,0 +1,7 @@
+^\\.Rproj\\.user$
+^pkgdown$
+^\\.github$
+^README\\.Rmd$
+^README\\.md$
+^docs$
+^vignettes/.+\\.html$

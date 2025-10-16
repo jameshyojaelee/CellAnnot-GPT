@@ -1,0 +1,108 @@
+---
+output: github_document
+---
+
+# gptcellannotator
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
+
+`gptcellannotator` connects Seurat workflows to the GPT Cell Annotator backend. It
+ships a streamlined R API with validation guardrails, plotting helpers, and an
+offline CLI fallback.
+
+## Installation
+
+```r
+# install from GitHub
+remotes::install_github(".../GPT-cell-annotator", subdir = "clients/r/gptcellannotator")
+```
+
+For offline annotations install the Python CLI once:
+
+```bash
+pip install gpt-cell-annotator
+```
+
+## Quick start
+
+```r
+library(gptcellannotator)
+
+cfg <- gptca_config(base_url = "https://api.gpt-cell-annotator.org")
+gptca_config_set(cfg)
+
+pbmc_markers <- system.file("extdata", "pbmc_markers.csv", package = "gptcellannotator")
+markers <- read.csv(pbmc_markers)
+
+annotations <- gptca_annotate_markers(
+  markers,
+  species = "Homo sapiens",
+  return_validated = TRUE
+)
+
+annotations$clusters
+```
+
+### Seurat pipeline
+
+```r
+library(Seurat)
+
+pbmc <- readRDS("path/to/pbmc.rds")            # replace with your Seurat object
+markers <- FindAllMarkers(pbmc)                # positive markers only
+
+annotations <- gptca_annotate_seurat(
+  pbmc,
+  markers = markers,
+  species = "Homo sapiens"
+)
+
+pbmc <- gptca_add_metadata(pbmc, annotations)
+gptca_plot_umap(pbmc)
+```
+
+### Offline fallback
+
+Set `offline = TRUE` or export `GPTCA_CLI_PATH` pointing to the `gca` binary. The
+package will write markers to a temp CSV, call `gca annotate`, and parse the
+structured JSON output.
+
+```r
+cfg <- gptca_config(offline = TRUE, cli_path = Sys.which("gca"))
+annotations <- gptca_annotate_markers(markers, config = cfg)
+```
+
+## Configuration
+
+- `GPTCA_BASE_URL` and `GPTCA_API_KEY` environment variables override defaults.
+- Tune timeouts and retries with `gptca_config(timeout = 45, retry_max = 5)`.
+- All exported functions accept `config` overrides for ad-hoc sessions.
+
+## Validation and guardrails
+
+Validated responses include:
+
+- Per-cluster `status` (`supported`, `flagged`, `unknown`)
+- Canonical markers and ontology identifiers
+- Validation notes (`missing_markers`, `contradictory_markers`)
+- Warning strings surfaced in Seurat metadata
+
+Use `annotations$raw` to inspect the full JSON payload.
+
+## Rate limits & costs
+
+The backend relies on OpenAI APIs. Keep marker batches small, reuse caching, and
+add pauses when parallelising to respect rate limits. Never share API keys in
+saved objects or public repos.
+
+## Getting help
+
+- Open an issue: <https://github.com/.../GPT-cell-annotator/issues>
+- Internal docs: `vignette("annotate-seurat", package = "gptcellannotator")`
