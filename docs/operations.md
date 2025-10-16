@@ -4,6 +4,11 @@
 - GPT Cell Annotator uses `structlog` to emit JSON logs enriched with `trace_id`, `method`, `path`, `status_code`, `duration_ms`. Each response includes `X-Trace-Id` and `X-Process-Time-ms` headers for correlation.
 - Tuning: set `LOG_LEVEL` (INFO, DEBUG, etc.) in environment configuration.
 
+## Offline Assets & Cache
+- `GCA_MARKER_DB_PATH` overrides the auto-materialised marker database path (useful when mounting corporate KBs or NFS volumes).
+- `GCA_CACHE_DIR` (and the CLI `--cache-dir` flag) enables the disk-backed annotation cache; reuse annotations across repeated reruns or air-gapped environments.
+- Cache directories contain JSON blobs keyed by cluster payloads. Clean the directory to invalidate stale responses.
+
 ## Log Aggregation
 - **Local**: pipe logs to a file or use `docker compose logs` for rapid debugging.
 - **ELK / OpenSearch**: ship container stdout to Logstash/Fluentbit. Index by `trace_id` to reconstruct request/response flows.
@@ -11,6 +16,7 @@
 
 ## Tracing & Metrics
 - `trace_id` header enables propagation across upstream services. Extend by forwarding to downstream APIs and central traces (e.g., OpenTelemetry).
+- Install the `[api]` extra to expose default Prometheus metrics (`gca_scanpy_batches_total`, `gca_scanpy_clusters_total`, `gca_scanpy_batch_duration_seconds`). Scrape them alongside existing API counters.
 - Capture additional metrics (success rate, latency percentiles) via Prometheus exporters or APM tools.
 
 ## Alerts & Playbooks

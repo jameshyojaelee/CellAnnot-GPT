@@ -24,10 +24,10 @@ GPT Cell Annotator is an AI assistant that annotates single-cell RNA-seq cluster
 ### 1. Install
 
 ```bash
-pip install "gpt-cell-annotator[api]"
+pip install "gpt-cell-annotator[api,scanpy]"
 # Optional extras:
-#   [ui]     -> Streamlit dashboard + plotting stack
-#   [scanpy] -> Scanpy integration helpers
+#   [ui]  -> Streamlit dashboard + plotting stack
+#   [dev] -> Ruff, mypy, pytest, twine helpers
 ```
 
 ### 2. Annotate markers from the CLI
@@ -38,6 +38,21 @@ gca annotate data/demo/pbmc_markers.csv --offline --out-json annotations.json
 
 # Rebuild the marker database locally
 gca build-db --offline --output-dir ~/.cache/gca/db
+
+# Annotate AnnData directly (async batches, caching, presets)
+gca scanpy annotate data/demo/pbmc_demo.h5ad \
+  --cluster-key leiden \
+  --species "Homo sapiens" \
+  --batch-size 16 \
+  --cache-dir ~/.cache/gca/annotations \
+  --summary-json reports/pbmc_report.json
+
+# Guardrail-only validation for existing labels
+gca scanpy validate data/demo/pbmc_demo.h5ad \
+  --cluster-key leiden \
+  --label-column celltype_prediction \
+  --species "Homo sapiens" \
+  --summary-json reports/pbmc_guardrails.json
 ```
 
 ### 3. Serve the API or UI
@@ -107,9 +122,11 @@ Add `--out-json demo_annotations.json` to store the structured report (same sche
 - Build the marker knowledge base from the sources listed in `config/marker_sources.yaml` with `gca build-db`; outputs land in `data/processed/`.
 - Start the FastAPI backend (`gca api`) so it can load the marker DB and expose `/annotate_cluster` / `/annotate_batch`.
 - Upload cluster markers (e.g., `data/demo/pbmc_markers.csv`) via the Streamlit UI or call the API to receive JSON annotations you can store alongside Scanpy results.
-- Drop into notebooks with `annotate_anndata` or run `gca scanpy annotate` for batch pipelines.
+- Drop into notebooks with `annotate_anndata` (returns a `ScanpyAnnotationResult`) or run `gca scanpy annotate` / `gca scanpy validate` for batch pipelines.
 - Tune guardrails with `VALIDATION_MIN_MARKER_OVERLAP`, `VALIDATION_FORCE_UNKNOWN_ON_FAIL`, `CONFIDENCE_OVERLAP_MEDIUM`, and `CONFIDENCE_OVERLAP_HIGH` to balance conservatism vs. recall.
 - Cross-species? Supply `species` (e.g., `Mus musculus`)—ortholog tables in `data/orthologs/` map markers back to the human-centric knowledge base and surface mapping notes in the UI/API.
+- Set `GCA_MARKER_DB_PATH` to point at external marker databases and `GCA_CACHE_DIR` to persist annotation responses when working offline.
+- Install the `[api]` extra to expose Prometheus counters for batch throughput and latency when running long-lived services.
 
 - Marker knowledge ingestion from PanglaoDB, CellMarker, and curated literature.
 - Prompt-engineered LLM annotation engine with batch support and uncertainty handling.

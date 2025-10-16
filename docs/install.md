@@ -22,12 +22,17 @@ pip install "gpt-cell-annotator[ui]"
 
 # Add Scanpy integration helpers (if you plan to use `gca scanpy`)
 pip install "gpt-cell-annotator[scanpy]"
+
+# Bring in development tooling (Ruff, mypy, pytest, twine)
+pip install "gpt-cell-annotator[dev]"
 ```
 
 The package bundles demo assets, marker databases, and default configuration. The first time you run a command the assets are copied into a cache directory:
 
 - Default cache: `~/.cache/gpt-cell-annotator`
 - Override: set `GPT_CELL_ANNOTATOR_HOME=/path/to/cache`
+- Force a specific marker database: `GCA_MARKER_DB_PATH=/mnt/atlas/marker_db.parquet`
+- Persist annotation responses offline: `GCA_CACHE_DIR=~/.cache/gca/annotations`
 
 ## Command Line Interface
 
@@ -42,7 +47,10 @@ gca build-db --offline --output-dir ~/.cache/gca/db
 
 # Forward to the Scanpy helper CLI
 gca scanpy annotate demo.h5ad --species "Homo sapiens" --cluster-key leiden \
-  --marker-db ~/.cache/gca/db/marker_db.parquet
+  --batch-size 16 --concurrency 2 --cache-dir ~/.cache/gca/annotations
+
+gca scanpy validate demo.h5ad --species "Homo sapiens" --cluster-key leiden \
+  --label-column curated_label
 
 # Launch the FastAPI server
 gca api --offline --host 0.0.0.0 --port 8000
@@ -91,4 +99,3 @@ gca annotate data/demo/pbmc_markers.csv --offline
 - Ensure `GPT_CELL_ANNOTATOR_HOME` points to a writeable location (defaults to `~/.cache/gpt-cell-annotator`).
 - For Docker/Compose, mount a persistent volume to `/data` so cached assets survive container rebuilds.
 - When running the API offline, expect heuristic annotations; results from the live LLM require an `OPENAI_API_KEY`.
-

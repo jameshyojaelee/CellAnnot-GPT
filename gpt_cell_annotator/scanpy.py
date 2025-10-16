@@ -7,20 +7,12 @@ import asyncio
 import json
 import logging
 import os
-import sys
 import time
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import (
-    Any,
-    Iterable,
-    Mapping,
-    NamedTuple,
-    Protocol,
-    Sequence,
-    TYPE_CHECKING,
-)
+from typing import Any, NamedTuple, Protocol
 from uuid import uuid4
 
 import anndata as ad
@@ -55,9 +47,6 @@ except ImportError:  # pragma: no cover - structlog is an optional extra at runt
     def _log(event: str, /, **fields: Any) -> None:
         _logger.info("%s %s", event, fields)
 
-
-if TYPE_CHECKING:  # pragma: no cover - typing only import
-    from backend.cache.redis_cache import RedisAnnotationCache
 
 try:  # Optional metrics sink for extras[gca,api]
     from prometheus_client import Counter, Histogram
@@ -113,10 +102,17 @@ else:  # pragma: no cover - metrics optional
 class AnnotationCacheProtocol(Protocol):
     """Minimal async cache interface used by the batching workflow."""
 
-    async def get(self, payload: dict[str, Any]) -> dict[str, Any] | None:  # pragma: no cover - protocol
+    async def get(
+        self,
+        payload: dict[str, Any],
+    ) -> dict[str, Any] | None:  # pragma: no cover - protocol
         ...
 
-    async def set(self, payload: dict[str, Any], value: dict[str, Any]) -> None:  # pragma: no cover - protocol
+    async def set(
+        self,
+        payload: dict[str, Any],
+        value: dict[str, Any],
+    ) -> None:  # pragma: no cover - protocol
         ...
 
 
@@ -625,7 +621,8 @@ def _apply_annotations_to_obs(
         )
         canonical_markers = metadata.get("canonical_markers") or annotation.get("markers") or []
         mapping_display = " | ".join(
-            f"{note.get('source', '?')}→{note.get('target') or 'unmapped'}" for note in mapping_notes
+            f"{note.get('source', '?')}→{note.get('target') or 'unmapped'}"
+            for note in mapping_notes
         )
         obs_indices = clusters_index.get(cluster_id, [])
         for obs_idx in obs_indices:
@@ -686,6 +683,14 @@ async def annotate_anndata_async(
         marker_db_path,
         cache=True,
     )
+    _log(
+        "scanpy.annotate.start",
+        request_id=request,
+        clusters=len(clusters_payload),
+        species=species,
+        tissue=tissue,
+        batch_size=(batch_options.size if batch_options else BatchOptions().size),
+    )
     annotations, report_model, stats = await _run_annotation_workflow(
         clusters_payload,
         annotator=annotator_instance,
@@ -698,7 +703,19 @@ async def annotate_anndata_async(
     )
 
     _apply_annotations_to_obs(adata, cluster_key, result_prefix, report_model)
-    return ScanpyAnnotationResult(adata=adata, report=report_model, annotations=annotations, stats=stats)
+    _log(
+        "scanpy.annotate.complete",
+        request_id=request,
+        summary=report_model.summary.model_dump(),
+        cache_hits=stats.get("cache_hits", 0),
+        llm_batches=stats.get("llm_batches", 0),
+    )
+    return ScanpyAnnotationResult(
+        adata=adata,
+        report=report_model,
+        annotations=annotations,
+        stats=stats,
+    )
 
 
 def annotate_anndata(
@@ -913,11 +930,19 @@ def validate_anndata(
         tissue=tissue,
         min_support=min_support,
     )
-    return build_structured_report(
+    report = build_structured_report(
         annotations,
         crosschecked,
         settings_override=settings_override,
     )
+    _log(
+        "scanpy.validate.complete",
+        clusters=len(annotations),
+        flagged=report.summary.flagged_clusters,
+        species=species,
+        tissue=tissue,
+    )
+    return report
 
 
 def _read_adata(path: Path) -> AnnData:
@@ -941,7 +966,10 @@ def _apply_preset(args: argparse.Namespace) -> None:
         return
     preset = SPECIES_PRESETS.get(args.preset)
     if not preset:
-        raise SystemExit(f"Unknown preset '{args.preset}'. Available presets: {', '.join(SPECIES_PRESETS)}")
+        available = ", ".join(SPECIES_PRESETS)
+        raise SystemExit(
+            f"Unknown preset '{args.preset}'. Available presets: {available}"
+        )
     if not args.species:
         args.species = preset.get("species")
     if not args.tissue and preset.get("tissue"):
@@ -962,6 +990,18 @@ def _build_batch_options(args: argparse.Namespace) -> BatchOptions:
     return BatchOptions(size=args.batch_size, concurrency=args.concurrency)
 
 
+def _guardrail_config_from_args(
+    min_overlap: int | None,
+    force_unknown: bool | None,
+) -> GuardrailConfig | None:
+    if min_overlap is None and force_unknown is None:
+        return None
+    return GuardrailConfig(
+        min_marker_overlap=min_overlap,
+        force_unknown_on_fail=force_unknown,
+    )
+
+
 def cmd_annotate(args: argparse.Namespace) -> int:
     _apply_preset(args)
     cache = _annotation_cache_from_args(args)
@@ -978,12 +1018,10 @@ def cmd_annotate(args: argparse.Namespace) -> int:
         annotator=annotator,
         compute_rankings=not args.skip_recompute_markers,
         batch_options=_build_batch_options(args),
-        guardrails=GuardrailConfig(
-            min_marker_overlap=args.guardrail_min_overlap,
-            force_unknown_on_fail=args.guardrail_force_unknown,
-        )
-        if args.guardrail_min_overlap is not None or args.guardrail_force_unknown is not None
-        else None,
+        guardrails=_guardrail_config_from_args(
+            args.guardrail_min_overlap,
+            args.guardrail_force_unknown,
+        ),
         annotation_cache=cache,
         request_id=args.request_id,
     )
@@ -1017,12 +1055,10 @@ def cmd_validate(args: argparse.Namespace) -> int:
         top_n_markers=args.top_n_markers,
         marker_db_path=args.marker_db,
         compute_rankings=not args.skip_recompute_markers,
-        guardrails=GuardrailConfig(
-            min_marker_overlap=args.guardrail_min_overlap,
-            force_unknown_on_fail=args.guardrail_force_unknown,
-        )
-        if args.guardrail_min_overlap is not None or args.guardrail_force_unknown is not None
-        else None,
+        guardrails=_guardrail_config_from_args(
+            args.guardrail_min_overlap,
+            args.guardrail_force_unknown,
+        ),
     )
     if args.summary_csv:
         df = report_to_dataframe(report)
@@ -1053,7 +1089,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Column in adata.obs that identifies cluster assignments.",
     )
     annotate_parser.add_argument("--species", help="Species context (overrides preset).")
-    annotate_parser.add_argument("--preset", choices=sorted(SPECIES_PRESETS), help="Use preset species/tissue.")
+    annotate_parser.add_argument(
+        "--preset",
+        choices=sorted(SPECIES_PRESETS),
+        help="Use preset species/tissue.",
+    )
     annotate_parser.add_argument("--tissue", help="Optional tissue context.")
     annotate_parser.add_argument(
         "--top-n-markers",
@@ -1125,8 +1165,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     annotate_parser.add_argument(
         "--guardrail-force-unknown",
+        dest="guardrail_force_unknown",
         action="store_true",
+        default=None,
         help="Force downgrade to Unknown when guardrails fail.",
+    )
+    annotate_parser.add_argument(
+        "--no-guardrail-force-unknown",
+        dest="guardrail_force_unknown",
+        action="store_false",
+        help="Disable downgrade to Unknown when guardrails fail.",
     )
     annotate_parser.add_argument(
         "--request-id",
@@ -1146,7 +1194,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Column in adata.obs that identifies cluster assignments.",
     )
     validate_parser.add_argument("--species", required=True, help="Species context.")
-    validate_parser.add_argument("--preset", choices=sorted(SPECIES_PRESETS), help="Use preset species/tissue.")
+    validate_parser.add_argument(
+        "--preset",
+        choices=sorted(SPECIES_PRESETS),
+        help="Use preset species/tissue.",
+    )
     validate_parser.add_argument("--tissue", help="Optional tissue context.")
     validate_parser.add_argument(
         "--label-column",
@@ -1180,8 +1232,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     validate_parser.add_argument(
         "--guardrail-force-unknown",
+        dest="guardrail_force_unknown",
         action="store_true",
+        default=None,
         help="Force downgrade to Unknown when guardrails fail.",
+    )
+    validate_parser.add_argument(
+        "--no-guardrail-force-unknown",
+        dest="guardrail_force_unknown",
+        action="store_false",
+        help="Disable downgrade to Unknown when guardrails fail.",
     )
     validate_parser.add_argument(
         "--summary-csv",
@@ -1205,6 +1265,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 __all__ = [
+    "MARKER_DB_COLUMNS",
     "BatchOptions",
     "DiskAnnotationCache",
     "GuardrailConfig",
@@ -1215,8 +1276,7 @@ __all__ = [
     "annotate_from_markers",
     "annotate_from_markers_async",
     "annotate_rank_genes",
+    "main",
     "report_to_dataframe",
     "validate_anndata",
-    "main",
-    "MARKER_DB_COLUMNS",
 ]

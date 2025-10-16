@@ -9,7 +9,19 @@ from __future__ import annotations
 from types import ModuleType
 from typing import Any
 
-__all__ = ["annotate_anndata", "report_to_dataframe"]
+__all__ = [
+    "BatchOptions",
+    "DiskAnnotationCache",
+    "GuardrailConfig",
+    "MarkerAnnotationResult",
+    "ScanpyAnnotationResult",
+    "annotate_anndata",
+    "annotate_anndata_async",
+    "annotate_from_markers",
+    "annotate_rank_genes",
+    "report_to_dataframe",
+    "validate_anndata",
+]
 
 
 def _load_scanpy_module() -> ModuleType:

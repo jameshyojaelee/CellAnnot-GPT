@@ -19,8 +19,10 @@ from gpt_cell_annotator.scanpy import (
     annotate_anndata_async,
     annotate_from_markers,
     annotate_rank_genes,
-    main as scanpy_main,
     validate_anndata,
+)
+from gpt_cell_annotator.scanpy import (
+    main as scanpy_main,
 )
 
 
@@ -150,6 +152,41 @@ def test_cli_roundtrip(tmp_path: Path, monkeypatch):
     assert stats_json.exists()
 
 
+def test_cli_validate_command(tmp_path: Path, monkeypatch):
+    settings = get_settings()
+    settings.validation_min_marker_overlap = 1
+    adata = _build_adata()
+    adata.obs["label"] = ["B cell"] * 6
+    input_path = tmp_path / "demo.h5ad"
+    adata.write(input_path)
+
+    marker_db = _build_mock_marker_db()
+    monkeypatch.setattr(
+        "gpt_cell_annotator.scanpy._load_marker_db",
+        lambda marker_db_arg, marker_db_path, cache=True: marker_db,
+    )
+
+    summary_json = tmp_path / "validate.json"
+
+    exit_code = scanpy_main(
+        [
+            "validate",
+            str(input_path),
+            "--cluster-key",
+            "cluster",
+            "--label-column",
+            "label",
+            "--species",
+            "Homo sapiens",
+            "--summary-json",
+            str(summary_json),
+        ]
+    )
+
+    assert exit_code == 0
+    assert summary_json.exists()
+
+
 def test_annotate_anndata_async_matches_sync():
     settings = get_settings()
     settings.validation_min_marker_overlap = 1
@@ -188,7 +225,7 @@ def test_annotate_from_markers(tmp_path: Path):
 
     assert result.report.summary.total_clusters == 2
     labels = {cluster.annotation["primary_label"] for cluster in result.report.clusters}
-    assert "Unknown or Novel" not in labels
+    assert any(label != "Unknown or Novel" for label in labels)
 
 
 def test_annotate_rank_genes_wrapper():

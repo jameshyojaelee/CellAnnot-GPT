@@ -32,7 +32,7 @@ ENV PIP_NO_CACHE_DIR=1 \
 WORKDIR /app
 COPY --from=builder /build/dist /tmp/dist
 RUN pip install --upgrade pip \
-    && pip install --no-index --find-links=/tmp/dist "gpt-cell-annotator[api]" \
+    && pip install --no-index --find-links=/tmp/dist "gpt-cell-annotator[api,scanpy]" \
     && rm -rf /tmp/dist
 
 VOLUME ["/data"]

@@ -18,7 +18,11 @@ typecheck:
 	poetry run mypy backend
 
 test:
-	poetry run pytest
+	PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 poetry run pytest
+
+release:
+	poetry build
+	poetry run twine check dist/*
 
 build-marker-db:
 	poetry run python scripts/build_marker_db.py

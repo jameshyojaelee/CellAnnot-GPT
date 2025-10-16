@@ -89,17 +89,19 @@ Refer to [`docs/demo.md`](docs/demo.md) for a narrated script you can follow dur
 
 ```python
 import scanpy as sc
-from gpt_cell_annotator import annotate_anndata
+from gpt_cell_annotator import BatchOptions, annotate_anndata
 
 adata = sc.read_h5ad("path/to/your_dataset.h5ad")
-adata, report = annotate_anndata(
+result = annotate_anndata(
     adata,
     cluster_key="leiden",
     species="Homo sapiens",
     tissue="Peripheral blood",
+    batch_options=BatchOptions(size=24, concurrency=2),
 )
 
-adata.obs[["gptca_label", "gptca_status"]].value_counts()
+result.report.summary
+result.adata.obs[["gptca_label", "gptca_status"]].value_counts()
 ```
 
 See the deep dive in [`docs/scanpy_integration.md`](docs/scanpy_integration.md#annotate-within-a-notebook) for advanced options (custom prefixes, ortholog mapping, CLI equivalents).
