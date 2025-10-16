@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import anndata as ad
@@ -8,9 +9,19 @@ import pandas as pd
 import scanpy as sc
 
 from backend.llm.annotator import Annotator
-from config.settings import Settings, get_settings
-from gpt_cell_annotator.scanpy import MARKER_DB_COLUMNS, annotate_anndata
-from gpt_cell_annotator.scanpy import main as scanpy_main
+from config.settings import get_settings
+from gpt_cell_annotator.scanpy import (
+    MARKER_DB_COLUMNS,
+    BatchOptions,
+    DiskAnnotationCache,
+    GuardrailConfig,
+    annotate_anndata,
+    annotate_anndata_async,
+    annotate_from_markers,
+    annotate_rank_genes,
+    main as scanpy_main,
+    validate_anndata,
+)
 
 
 def _build_mock_marker_db() -> pd.DataFrame:
@@ -61,10 +72,9 @@ def test_annotate_anndata_adds_columns(monkeypatch):
     settings.validation_min_marker_overlap = 1
     adata = _build_adata()
     marker_db = _build_mock_marker_db()
-    settings = Settings(openai_api_key="", openai_requests_per_minute=0)
     annotator = Annotator(settings=settings)
 
-    updated, report = annotate_anndata(
+    result = annotate_anndata(
         adata,
         "cluster",
         species="Homo sapiens",
@@ -72,9 +82,9 @@ def test_annotate_anndata_adds_columns(monkeypatch):
         annotator=annotator,
     )
 
-    assert "gptca_label" in updated.obs.columns
-    assert "gptca_proposed_label" in updated.obs.columns
-    labels = {label for label in updated.obs["gptca_label"] if label}
+    assert "gptca_label" in result.adata.obs.columns
+    assert "gptca_proposed_label" in result.adata.obs.columns
+    labels = {label for label in result.adata.obs["gptca_label"] if label}
     assert labels  # at least one label populated
     allowed = {
         "B cell",
@@ -87,8 +97,9 @@ def test_annotate_anndata_adds_columns(monkeypatch):
         "Unknown or Novel",
     }
     assert labels <= allowed
-    assert report["summary"]["total_clusters"] == 2
-    assert len(report["clusters"]) == 2
+    assert result.report.summary.total_clusters == 2
+    assert len(result.report.clusters) == 2
+    assert result.stats["total_clusters"] == 2
 
 
 def test_cli_roundtrip(tmp_path: Path, monkeypatch):
@@ -102,11 +113,12 @@ def test_cli_roundtrip(tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(
         "gpt_cell_annotator.scanpy._load_marker_db",
-        lambda marker_db_arg, marker_db_path: marker_db,
+        lambda marker_db_arg, marker_db_path, cache=True: marker_db,
     )
 
     summary_csv = tmp_path / "summary.csv"
     summary_json = tmp_path / "summary.json"
+    stats_json = tmp_path / "stats.json"
     output_path = tmp_path / "annotated.h5ad"
 
     exit_code = scanpy_main(
@@ -123,6 +135,9 @@ def test_cli_roundtrip(tmp_path: Path, monkeypatch):
             str(summary_csv),
             "--summary-json",
             str(summary_json),
+            "--stats-json",
+            str(stats_json),
+            "--offline",
         ]
     )
 
@@ -132,3 +147,125 @@ def test_cli_roundtrip(tmp_path: Path, monkeypatch):
     assert "gptca_proposed_label" in annotated.obs.columns
     assert summary_csv.exists()
     assert summary_json.exists()
+    assert stats_json.exists()
+
+
+def test_annotate_anndata_async_matches_sync():
+    settings = get_settings()
+    settings.validation_min_marker_overlap = 1
+    marker_db = _build_mock_marker_db()
+
+    sync_result = annotate_anndata(
+        _build_adata(),
+        "cluster",
+        species="Homo sapiens",
+        marker_db=marker_db,
+    )
+
+    async_result = asyncio.run(
+        annotate_anndata_async(
+            _build_adata(),
+            "cluster",
+            species="Homo sapiens",
+            marker_db=marker_db,
+        )
+    )
+
+    assert async_result.report.summary.total_clusters == sync_result.report.summary.total_clusters
+    assert async_result.stats["total_clusters"] == sync_result.stats["total_clusters"]
+    assert "gptca_label" in async_result.adata.obs.columns
+
+
+def test_annotate_from_markers(tmp_path: Path):
+    marker_db = _build_mock_marker_db()
+    markers = {"0": ["MS4A1", "CD79A"], "1": ["CD3E", "CD3D"]}
+    result = annotate_from_markers(
+        markers,
+        species="Homo sapiens",
+        marker_db=marker_db,
+        batch_options=BatchOptions(size=1, concurrency=1),
+    )
+
+    assert result.report.summary.total_clusters == 2
+    labels = {cluster.annotation["primary_label"] for cluster in result.report.clusters}
+    assert "Unknown or Novel" not in labels
+
+
+def test_annotate_rank_genes_wrapper():
+    marker_db = _build_mock_marker_db()
+    rankings = {
+        "0": ["MS4A1", "CD79A", "CD74"],
+        "1": ["CD3E", "CD3D", "CD2"],
+    }
+    result = annotate_rank_genes(
+        rankings,
+        species="Homo sapiens",
+        marker_db=marker_db,
+    )
+    assert result.report.summary.total_clusters == 2
+
+
+def test_validate_anndata_guardrail_override():
+    settings = get_settings()
+    settings.validation_min_marker_overlap = 1
+    adata = _build_adata()
+    adata.obs["gpt_label"] = ["B cell"] * 6
+    marker_db = _build_mock_marker_db()
+
+    report_default = validate_anndata(
+        adata,
+        "cluster",
+        species="Homo sapiens",
+        label_column="gpt_label",
+        marker_db=marker_db,
+    )
+    assert report_default.summary.flagged_clusters <= 2
+
+    report_strict = validate_anndata(
+        adata,
+        "cluster",
+        species="Homo sapiens",
+        label_column="gpt_label",
+        marker_db=marker_db,
+        guardrails=GuardrailConfig(min_marker_overlap=5),
+    )
+    assert report_strict.summary.flagged_clusters >= report_default.summary.flagged_clusters
+
+
+def test_disk_cache_reduces_batches(tmp_path: Path, monkeypatch):
+    settings = get_settings()
+    settings.validation_min_marker_overlap = 1
+    marker_db = _build_mock_marker_db()
+
+    call_counter = {"count": 0}
+
+    cache_dir = tmp_path / "cache"
+    cache = DiskAnnotationCache(cache_dir)
+
+    monkeypatch.setattr(
+        "gpt_cell_annotator.scanpy.Annotator.annotate_batch",
+        lambda self, payload, context: call_counter.__setitem__("count", call_counter["count"] + 1)
+        or {str(item["cluster_id"]): {"primary_label": "B cell"} for item in payload},
+    )
+
+    result_first = annotate_anndata(
+        _build_adata(),
+        "cluster",
+        species="Homo sapiens",
+        marker_db=marker_db,
+        annotation_cache=cache,
+        batch_options=BatchOptions(size=1, concurrency=1),
+    )
+    assert result_first.stats["llm_batches"] == 2
+
+    call_counter["count"] = 0
+    result_second = annotate_anndata(
+        _build_adata(),
+        "cluster",
+        species="Homo sapiens",
+        marker_db=marker_db,
+        annotation_cache=cache,
+        batch_options=BatchOptions(size=1, concurrency=1),
+    )
+    assert call_counter["count"] == 0
+    assert result_second.stats["cache_hits"] == 2

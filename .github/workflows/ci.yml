@@ -26,7 +26,7 @@ jobs:
       - name: Install dependencies
         run: |
           poetry config virtualenvs.in-project true
-          poetry install --no-interaction --with dev
+          poetry install --no-interaction --extras "dev,scanpy,api,ui"
 
       - name: Ruff lint
         run: poetry run ruff check backend frontend evaluation scripts config tests
@@ -95,7 +95,7 @@ jobs:
       - name: Install deps
         run: |
           poetry config virtualenvs.in-project true
-          poetry install --no-interaction --with dev
+          poetry install --no-interaction --extras "dev,scanpy,api,ui"
 
       - name: Run benchmarks (mock)
         env:

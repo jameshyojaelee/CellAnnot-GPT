@@ -1,7 +1,7 @@
 .PHONY: install format lint test typecheck ruff ruff-fix build-marker-db api ui clean
 
 install:
-	poetry install
+	poetry install --extras "dev,scanpy,api,ui"
 
 format:
 	poetry run black backend frontend evaluation scripts config tests

@@ -9,7 +9,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from backend.validation.crosscheck import CrosscheckResult
-from config.settings import get_settings
+from config.settings import Settings, get_settings
 
 FLAG_REASON_MESSAGES: dict[str, str] = {
     "low_marker_overlap": "Low marker overlap with knowledge base markers.",
@@ -93,6 +93,8 @@ def _compute_rates(count: int, total: int) -> float:
 def build_structured_report(
     annotations: Iterable[dict[str, Any]],
     crosscheck_results: dict[str, CrosscheckResult],
+    *,
+    settings_override: Settings | None = None,
 ) -> DatasetReport:
     """Combine annotations with validation findings into a canonical structure."""
 
@@ -102,7 +104,7 @@ def build_structured_report(
     unknown_clusters: list[str] = []
     reason_counts: Counter[str] = Counter()
     confidence_counts: Counter[str] = Counter()
-    settings = get_settings()
+    settings = settings_override or get_settings()
 
     for annotation in annotations:
         cluster_id = str(annotation.get("cluster_id", "unknown"))
