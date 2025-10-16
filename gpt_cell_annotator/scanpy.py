@@ -485,10 +485,17 @@ async def _annotate_batches_async(
                 request_id=request_id,
             )
 
+            start = time.perf_counter()
+
             def compute() -> dict[str, Any]:
                 return annotator.annotate_batch(pending, dataset_context)
 
             raw = await _run_in_thread(compute)
+            duration = time.perf_counter() - start
+            if _BATCH_DURATION is not None:
+                _BATCH_DURATION.labels(mode=annotator.llm_mode).observe(duration)
+                _BATCH_COUNTER.labels(mode=annotator.llm_mode).inc()
+                _CLUSTER_COUNTER.labels(mode=annotator.llm_mode).inc(len(pending))
             for position, cluster in enumerate(pending):
                 cluster_id = str(cluster["cluster_id"])
                 result = dict(raw.get(cluster_id) or {})
