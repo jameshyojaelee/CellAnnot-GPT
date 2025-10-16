@@ -34,9 +34,7 @@ logger = logging.getLogger("gpt_cell_annotator.benchmarks")
 def _discover_datasets(dataset_dir: Path, filters: set[str] | None) -> list[Path]:
     datasets = sorted(dataset_dir.glob("*.json"))
     if filters:
-        datasets = [
-            path for path in datasets if path.stem in filters or path.name in filters
-        ]
+        datasets = [path for path in datasets if path.stem in filters or path.name in filters]
     return datasets
 
 

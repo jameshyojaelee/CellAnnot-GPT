@@ -42,6 +42,7 @@ MARKER_DB = pd.DataFrame(
     ]
 )
 
+
 class DummyAnnotator:
     def annotate_cluster(self, payload, dataset_context=None):  # type: ignore[override]
         cluster_id = payload["cluster_id"]

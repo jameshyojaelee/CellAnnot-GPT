@@ -190,9 +190,7 @@ class GeneNormalizer:
 
         if not mapped_markers:
             mapped_markers = [
-                marker.upper()
-                for marker in markers
-                if isinstance(marker, str) and marker.strip()
+                marker.upper() for marker in markers if isinstance(marker, str) and marker.strip()
             ]
 
         return mapped_markers, notes

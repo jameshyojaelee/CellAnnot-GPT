@@ -57,9 +57,7 @@ def _extract_predictions(
     for cluster in report.get("clusters", []):
         annotation = cluster.get("annotation", {})
         alternatives = [
-            alt.get("label")
-            for alt in annotation.get("alternatives", [])
-            if isinstance(alt, dict)
+            alt.get("label") for alt in annotation.get("alternatives", []) if isinstance(alt, dict)
         ]
         records.append(
             PredictionRecord(

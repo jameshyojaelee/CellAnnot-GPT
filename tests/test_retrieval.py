@@ -83,8 +83,6 @@ def test_retrieve_candidates_integration(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr("backend.llm.retrieval.get_settings", lambda: dummy)
     retrieval.get_retriever.cache_clear()  # type: ignore[attr-defined]
 
-    candidates = retrieve_candidates(
-        ["CD3d"], species="Homo sapiens", tissue="Blood"
-    )
+    candidates = retrieve_candidates(["CD3d"], species="Homo sapiens", tissue="Blood")
     assert candidates
     assert candidates[0].cell_type == "T cell"

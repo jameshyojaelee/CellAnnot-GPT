@@ -14,8 +14,10 @@ from jsonschema import Draft202012Validator
 try:  # structlog is optional in certain environments (e.g., tests)
     from structlog.contextvars import get_contextvars
 except ImportError:  # pragma: no cover - fallback when structlog not available
+
     def get_contextvars() -> dict[str, Any]:  # type: ignore[name-defined]
         return {}
+
 
 from openai import OpenAI
 
@@ -324,8 +326,7 @@ class Annotator:
         """Annotate multiple clusters in one call."""
 
         enriched_clusters = [
-            self._prepare_cluster_payload(cluster, dataset_context)
-            for cluster in clusters
+            self._prepare_cluster_payload(cluster, dataset_context) for cluster in clusters
         ]
         if self._mode == "mock" or self._client is None:
             return self._mock_backend.annotate_batch(
