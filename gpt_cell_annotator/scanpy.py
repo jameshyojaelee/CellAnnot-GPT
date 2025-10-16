@@ -374,11 +374,15 @@ def _load_marker_db(
     *,
     cache: bool = True,
 ) -> pd.DataFrame:
-    if marker_db is not None:
-        missing = [column for column in MARKER_DB_COLUMNS if column not in marker_db.columns]
+    def _ensure_columns(frame: pd.DataFrame) -> pd.DataFrame:
+        missing = [column for column in MARKER_DB_COLUMNS if column not in frame.columns]
         if missing:
-            raise ValueError(f"Marker DB missing expected columns: {missing}")
-        return marker_db[MARKER_DB_COLUMNS].copy()
+            for column in missing:
+                frame[column] = None
+        return frame[MARKER_DB_COLUMNS].copy()
+
+    if marker_db is not None:
+        return _ensure_columns(marker_db.copy())
 
     resolved = _resolve_marker_db_path(
         Path(marker_db_path) if marker_db_path is not None else None
@@ -392,7 +396,7 @@ def _load_marker_db(
             return cached[1].copy()
 
     df = pd.read_parquet(resolved)
-    trimmed = df[MARKER_DB_COLUMNS].copy()
+    trimmed = _ensure_columns(df)
     if cache:
         _MARKER_CACHE[resolved] = (resolved.stat().st_mtime, trimmed)
     return trimmed.copy()

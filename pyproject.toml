@@ -132,9 +132,12 @@ ignore = [ "B008",]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-ra --strict-markers"
+addopts = "-ra --strict-markers -p pytest_asyncio"
 testpaths = [ "tests",]
 pythonpath = [ ".",]
+markers = [
+    "asyncio: marks tests that exercise asyncio codepaths",
+]
 
 [tool.poe.tasks]
 install = "poetry install"
