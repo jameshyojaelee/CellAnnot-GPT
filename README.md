@@ -8,6 +8,17 @@ GPT Cell Annotator is an AI assistant that annotates single-cell RNA-seq cluster
 - Existing tools (reference-mapping like SingleR/CellTypist, latent-transfer like scANVI) work best with high-quality reference atlases; they struggle on novel cell states, rare types, or out-of-distribution data.
 - An LLM assistant adds flexible knowledge integration and explanations, but must be guarded against hallucinations via validation and “unknown” handling.
 
+## How We Differ from GPTCelltype
+
+| Aspect | GPT Cell Annotator | [GPTCelltype](https://github.com/Winnie09/GPTCelltype) |
+| --- | --- | --- |
+| Architecture | CLI, FastAPI service, Streamlit UI, and Docker images for end-to-end workflows. | R package aimed at Seurat pipelines inside R sessions. |
+| Knowledge engine | Curated marker database, retrieval augmentation, and offline heuristic annotator for key tasks. | Relies on live GPT model responses directly from user-provided markers. |
+| Validation & guardrails | Automatic evidence checks, downgrade logic, and warning taxonomy (`flagged_low_support`, species mismatch, etc.). | Manual post-hoc review of GPT output; no built-in guardrail system. |
+| Operations | Structured JSON logging, trace IDs, deployment playbooks, and observability roadmap. | No logging or operational guidance beyond API key setup. |
+| Interoperability | Supports Scanpy CLI integration, REST API schema, and notebook tooling. | Focused on Seurat `FindAllMarkers()` output within R. |
+| Offline & resilience | Ships offline demo mode, bundled knowledge assets, and configurable thresholds. | Requires OpenAI API access; no offline fallback or configuration hooks. |
+
 ## Quick Start
 
 ### 1. Install
