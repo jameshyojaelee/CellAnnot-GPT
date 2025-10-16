@@ -15,7 +15,7 @@ navbar:
   components:
     github:
       icon: fab fa-github
-      href: https://github.com/.../GPT-cell-annotator
+      href: https://github.com/jameshyojaelee/GPT-cell-annotator
 
 reference:
   - title: Configuration

@@ -8,7 +8,7 @@ an offline CLI fallback.
 
 ```r
 # install from GitHub (requires remotes or devtools)
-remotes::install_github(".../GPT-cell-annotator", subdir = "clients/r/gptcellannotator")
+remotes::install_github("https://github.com/jameshyojaelee/GPT-cell-annotator", subdir = "clients/r/gptcellannotator")
 ```
 
 For offline annotations install the Python CLI:
