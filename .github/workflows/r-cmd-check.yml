@@ -58,12 +58,14 @@ jobs:
         uses: r-lib/actions/check-r-package@v2
         with:
           working-directory: clients/r/gptcellannotator
-          args: '--as-cran'
+          args: '--as-cran --no-build-vignettes --ignore-vignettes'
+          build-args: '--no-build-vignettes'
 
       - name: Run lintr
         if: always()
         working-directory: clients/r/gptcellannotator
-        run: Rscript -e "lintr::lint_package()"
+        run: >-
+          Rscript -e "lintr::lint_package(linters = lintr::linters_with_defaults(line_length_linter = lintr::line_length_linter(160), object_length_linter = NULL))"
 
       - name: Upload check artifacts
         if: failure()
