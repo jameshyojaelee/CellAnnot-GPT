@@ -8,7 +8,7 @@ GPT Cell Annotator is an AI assistant that annotates single-cell RNA-seq cluster
 - Existing tools (reference-mapping like SingleR/CellTypist, latent-transfer like scANVI) work best with high-quality reference atlases; they struggle on novel cell states, rare types, or out-of-distribution data.
 - An LLM assistant adds flexible knowledge integration and explanations, but must be guarded against hallucinations via validation and “unknown” handling.
 
-## How We Differ from GPTCelltype
+## How it Differs from GPTCelltype
 
 | Aspect | GPT Cell Annotator | [GPTCelltype](https://github.com/Winnie09/GPTCelltype) |
 | --- | --- | --- |
