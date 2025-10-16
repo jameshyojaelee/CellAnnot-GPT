@@ -44,35 +44,35 @@ jobs:
 
       - name: Scanpy CLI smoke test (offline)
         run: |
-tmp_dir=$(mktemp -d)
-cd "$tmp_dir"
-cat <<'PY' | poetry run python -
-import numpy as np
-import pandas as pd
-import scanpy as sc
+          tmp_dir=$(mktemp -d)
+          cd "$tmp_dir"
+          cat <<'PY' | poetry run python -
+          import numpy as np
+          import pandas as pd
+          import scanpy as sc
 
-matrix = np.zeros((6, 4), dtype=float)
-matrix[:3, 0] = 5
-matrix[3:, 1] = 5
-obs = pd.DataFrame({'cluster': ['0', '0', '0', '1', '1', '1']})
-var = pd.DataFrame(index=['MS4A1', 'CD3E', 'GNLY', 'LYZ'])
-adata = sc.AnnData(matrix, obs=obs, var=var)
-sc.pp.normalize_total(adata)
-sc.pp.log1p(adata)
-sc.tl.rank_genes_groups(adata, groupby='cluster', n_genes=3)
-adata.write_h5ad('smoke.h5ad')
-PY
-poetry run gca scanpy annotate smoke.h5ad \
-  --cluster-key cluster \
-  --species "Homo sapiens" \
-  --batch-size 2 \
-  --concurrency 1 \
-  --summary-json smoke_report.json \
-  --stats-json smoke_stats.json \
-  --offline
-test -s smoke_report.json
-cd -
-rm -rf "$tmp_dir"
+          matrix = np.zeros((6, 4), dtype=float)
+          matrix[:3, 0] = 5
+          matrix[3:, 1] = 5
+          obs = pd.DataFrame({'cluster': ['0', '0', '0', '1', '1', '1']})
+          var = pd.DataFrame(index=['MS4A1', 'CD3E', 'GNLY', 'LYZ'])
+          adata = sc.AnnData(matrix, obs=obs, var=var)
+          sc.pp.normalize_total(adata)
+          sc.pp.log1p(adata)
+          sc.tl.rank_genes_groups(adata, groupby='cluster', n_genes=3)
+          adata.write_h5ad('smoke.h5ad')
+          PY
+          poetry run gca scanpy annotate smoke.h5ad \
+            --cluster-key cluster \
+            --species "Homo sapiens" \
+            --batch-size 2 \
+            --concurrency 1 \
+            --summary-json smoke_report.json \
+            --stats-json smoke_stats.json \
+            --offline
+          test -s smoke_report.json
+          cd -
+          rm -rf "$tmp_dir"
 
       - name: Build distribution artifacts
         run: |
