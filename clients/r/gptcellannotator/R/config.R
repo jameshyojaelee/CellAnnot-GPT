@@ -87,7 +87,9 @@ gptca_config_get <- function(default = gptca_config()) {
   cfg <- get0("gptca_config", envir = .gptca_state, ifnotfound = NULL)
   if (is.null(cfg)) {
     cfg <- default
-    gptca_config_set(cfg)
+    if (!is.null(cfg)) {
+      gptca_config_set(cfg)
+    }
   }
   cfg
 }
@@ -130,7 +132,11 @@ gptca_user_agent <- function(extra = NULL) {
     utils::packageDescription("gptcellannotator"),
     error = function(...) NULL
   )
-  version <- pkg[["Version"]] %||% "0.0.0"
+  if (is.null(pkg) || (length(pkg) == 1 && is.na(pkg))) {
+    version <- "0.0.0"
+  } else {
+    version <- pkg[["Version"]] %||% "0.0.0"
+  }
   ua <- sprintf("gptcellannotator/%s", version)
   if (!is.null(extra) && nzchar(extra) && !identical(extra, utils::packageName())) {
     ua <- paste(ua, extra)

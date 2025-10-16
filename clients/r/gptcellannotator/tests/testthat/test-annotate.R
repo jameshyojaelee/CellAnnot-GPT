@@ -94,10 +94,17 @@ test_that("gptca_annotate_markers falls back to CLI", {
 
   cfg <- gptca_config(base_url = "https://mock.api", cli_path = cli_script, offline = FALSE)
 
-  result <- with_mocked_bindings(
-    gptca_annotate_markers(list(`0` = c("X")), config = cfg, fallback = TRUE),
-    gptca_http_post = function(path, body, config) stop("boom")
+  warnings <- list()
+  result <- withCallingHandlers(
+    with_mocked_bindings(
+      gptca_annotate_markers(list(`0` = c("X")), config = cfg, fallback = TRUE),
+      gptca_http_post = function(path, body, config) stop("boom")
+    ),
+    warning = function(w) {
+      warnings <<- c(warnings, list(w))
+    }
   )
+  expect_true(any(grepl("HTTP request failed", vapply(warnings, conditionMessage, character(1)), fixed = TRUE)))
   expect_true(result$validated)
   expect_equal(result$clusters$status, "flagged")
   expect_identical(result$clusters$warnings[[1]], list("Mocked"))

@@ -9,7 +9,7 @@ gptca_http_post <- function(path, body, config) {
   url <- paste0(config$base_url, path)
   req <- httr2::request(url)
   req <- httr2::req_method(req, "POST")
-  req <- httr2::req_body_json(req, body = body, auto_unbox = TRUE)
+  req <- httr2::req_body_json(req, data = body, auto_unbox = TRUE)
   req <- httr2::req_headers(
     req,
     Accept = "application/json",
@@ -24,7 +24,7 @@ gptca_http_post <- function(path, body, config) {
 
   req <- httr2::req_retry(
     req,
-    max_attempts = max(1L, config$retry_max + 1L),
+    max_tries = max(1L, config$retry_max + 1L),
     backoff = gptca_retry_backoff(config$retry_backoff),
     is_transient = gptca_is_transient_error
   )
@@ -40,8 +40,9 @@ gptca_http_post <- function(path, body, config) {
 }
 
 gptca_retry_backoff <- function(base_delay) {
-  function(req, resp, attempt) {
-    delay <- base_delay * 2^(attempt - 1L)
+  function(req) {
+    tries <- req$policies$retry_tries %||% 1L
+    delay <- base_delay * 2^(tries - 1L)
     stats::runif(1L, min = delay * 0.8, max = delay * 1.2)
   }
 }

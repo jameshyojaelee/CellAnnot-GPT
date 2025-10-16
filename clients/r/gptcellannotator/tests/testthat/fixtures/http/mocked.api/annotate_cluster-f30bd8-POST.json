@@ -1,0 +1,1 @@
+{"result": {"cluster_id": "0", "status": "supported", "confidence": "High", "warnings": [], "annotation": {"primary_label": "B cell", "ontology_id": "CL:0000236", "confidence": "High", "rationale": "Mocked cluster response", "markers": ["MS4A1", "CD79A"]}}}

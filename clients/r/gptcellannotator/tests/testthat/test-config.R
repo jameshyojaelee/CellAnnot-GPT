@@ -13,6 +13,6 @@ test_that("gptca_config uses env defaults", {
 test_that("gptca_config_set stores config", {
   cfg <- gptca_config(base_url = "https://example.org")
   prev <- gptca_config_set(cfg)
-  expect_null(prev)
+  expect_s3_class(prev, "GptcaConfig")
   expect_identical(gptca_config_get(), cfg)
 })

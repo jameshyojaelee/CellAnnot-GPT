@@ -137,8 +137,8 @@ gptca_tibble_from_clusters <- function(clusters) {
 
 #' @export
 print.gptca_annotation <- function(x, ...) {
-  validated <- if (isTRUE(x$validated)) "validated" else "raw"
-  cli::cli_text("{.strong GPT Cell Annotator annotations} ({validated})")
+  validated_text <- if (isTRUE(x$validated)) "validated" else "raw" # nolint: object_usage_linter
+  cli::cli_text("{.strong GPT Cell Annotator annotations} ({validated_text})")
   clusters <- x$clusters
   if (nrow(clusters) == 0) {
     cli::cli_text("No clusters annotated.")

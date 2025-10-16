@@ -22,7 +22,6 @@ Imports:
     cli,
     httr2,
     jsonlite,
-    methods,
     purrr,
     rlang,
     tibble,
@@ -32,6 +31,7 @@ Suggests:
     devtools,
     ggplot2,
     httptest2,
+    knitr,
     lintr,
     pkgdown,
     Seurat,
@@ -39,6 +39,7 @@ Suggests:
     styler,
     testthat (>= 3.1.0),
     withr
+VignetteBuilder: knitr
 Config/testthat/edition: 3
 URL: https://github.com/.../GPT-cell-annotator
 BugReports: https://github.com/.../GPT-cell-annotator/issues

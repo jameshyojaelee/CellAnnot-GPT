@@ -84,7 +84,7 @@ gptca_annotate_markers <- function(
         )
       )
     } else {
-      cli::cli_abort(conditionMessage(attr(result, "condition")))
+      stop(conditionMessage(attr(result, "condition")), call. = FALSE)
     }
   }
 
