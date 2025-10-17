@@ -39,6 +39,7 @@ This checklist streamlines publishing wheels, source distributions, and containe
   pip install "gpt-cell-annotator[api,scanpy]"
   gca --version
   ```
+- [ ] Archive the installation matrix and smoke-test notes under `docs/reports/releases/${VERSION}/install_matrix.md`.
 
 ## 4. Build & Push Docker Images
 - [ ] Build the release image:
