@@ -50,22 +50,22 @@ jobs:
         run: |
           tmp_dir=$(mktemp -d)
           poetry run python <<PY
-            from pathlib import Path
-            import numpy as np
-            import pandas as pd
-            import scanpy as sc
+from pathlib import Path
+import numpy as np
+import pandas as pd
+import scanpy as sc
 
-            tmp = Path("${tmp_dir}")
-            matrix = np.zeros((6, 4), dtype=float)
-            matrix[:3, 0] = 5
-            matrix[3:, 1] = 5
-            obs = pd.DataFrame({'cluster': ['0', '0', '0', '1', '1', '1']})
-            var = pd.DataFrame(index=['MS4A1', 'CD3E', 'GNLY', 'LYZ'])
-            adata = sc.AnnData(matrix, obs=obs, var=var)
-            sc.pp.normalize_total(adata)
-            sc.pp.log1p(adata)
-            sc.tl.rank_genes_groups(adata, groupby='cluster', n_genes=3)
-            adata.write_h5ad(tmp / 'smoke.h5ad')
+tmp = Path("${tmp_dir}")
+matrix = np.zeros((6, 4), dtype=float)
+matrix[:3, 0] = 5
+matrix[3:, 1] = 5
+obs = pd.DataFrame({'cluster': ['0', '0', '0', '1', '1', '1']})
+var = pd.DataFrame(index=['MS4A1', 'CD3E', 'GNLY', 'LYZ'])
+adata = sc.AnnData(matrix, obs=obs, var=var)
+sc.pp.normalize_total(adata)
+sc.pp.log1p(adata)
+sc.tl.rank_genes_groups(adata, groupby='cluster', n_genes=3)
+adata.write_h5ad(tmp / 'smoke.h5ad')
           PY
           poetry run gca scanpy annotate "$tmp_dir/smoke.h5ad" \
             --cluster-key cluster \
