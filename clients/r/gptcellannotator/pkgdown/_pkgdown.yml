@@ -4,7 +4,11 @@ template:
 
 url: https://jameshyojaelee.github.io/CellAnnot-GPT/r
 repo:
-  url: https://github.com/jameshyojaelee/CellAnnot-GPT
+  url:
+    home: https://github.com/jameshyojaelee/CellAnnot-GPT/
+    source: https://github.com/jameshyojaelee/CellAnnot-GPT/blob/main/
+    issue: https://github.com/jameshyojaelee/CellAnnot-GPT/issues/
+    user: https://github.com/
   branch: main
 
 home:

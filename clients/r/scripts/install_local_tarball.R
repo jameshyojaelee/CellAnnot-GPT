@@ -19,9 +19,10 @@ ensure_package("pkgbuild")
 ensure_package("pak")
 
 tarball_path <- pkgbuild::build(
-  pkg = pkg_root,
+  path = pkg_root,
   dest_path = dest_dir,
   binary = FALSE,
+  vignettes = FALSE,
   quiet = TRUE
 )
 

@@ -24,6 +24,9 @@ data/interim/
 data/processed/
 marker_db.sqlite
 *.parquet
+# Packaged demo/offline assets shipped with the library
+!gpt_cell_annotator/_assets/**/*.parquet
+!gpt_cell_annotator/_assets/data/processed/marker_db.sqlite
 
 # Streamlit / cache
 .streamlit/
