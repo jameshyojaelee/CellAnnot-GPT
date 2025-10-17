@@ -1,6 +1,6 @@
 Package: gptcellannotator
 Title: Connect Seurat Workflows to GPT Cell Annotator
-Version: 0.0.0.9000
+Version: 0.1.0
 Authors@R: c(
     person(given = "GPT Cell Annotator",
            family = "Team",
@@ -14,6 +14,7 @@ Description: Provides an R interface for submitting marker genes or Seurat objec
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
+SystemRequirements: Pandoc (>= 2.11), libcurl (>= 7.58), OpenSSL, C++14-capable toolchain, git
 Roxygen: list(markdown = TRUE, roclets = c("rd", "namespace", "vignette"))
 RoxygenNote: 7.3.1
 Depends:
@@ -33,6 +34,7 @@ Suggests:
     httptest2,
     knitr,
     lintr,
+    pak,
     pkgdown,
     Seurat,
     SeuratObject,
@@ -41,5 +43,5 @@ Suggests:
     withr
 VignetteBuilder: knitr
 Config/testthat/edition: 3
-URL: https://github.com/.../GPT-cell-annotator
-BugReports: https://github.com/.../GPT-cell-annotator/issues
+URL: https://github.com/jameshyojaelee/CellAnnot-GPT, https://jameshyojaelee.github.io/CellAnnot-GPT/r
+BugReports: https://github.com/jameshyojaelee/CellAnnot-GPT/issues

@@ -2,20 +2,35 @@ template:
   package: pkgdown
   bootstrap: 5
 
+url: https://jameshyojaelee.github.io/CellAnnot-GPT/r
+repo:
+  url: https://github.com/jameshyojaelee/CellAnnot-GPT
+  branch: main
+
 home:
   title: GPT Cell Annotator for R
   description: >
     R interface to the GPT Cell Annotator backend with Seurat integration,
     validation guardrails, and offline CLI support.
+  links:
+    - text: Seurat workflow guide
+      href: https://github.com/jameshyojaelee/CellAnnot-GPT/blob/main/docs/seurat_integration.md
+    - text: Scanpy integration
+      href: https://github.com/jameshyojaelee/CellAnnot-GPT/blob/main/docs/scanpy_integration.md
+    - text: REST API schema
+      href: https://github.com/jameshyojaelee/CellAnnot-GPT/blob/main/schemas/api/openapi.yaml
 
 navbar:
   structure:
     left: [intro, reference, articles]
-    right: [github]
+    right: [vignette, github]
   components:
     github:
       icon: fab fa-github
-      href: https://github.com/jameshyojaelee/GPT-cell-annotator
+      href: https://github.com/jameshyojaelee/CellAnnot-GPT
+    vignette:
+      text: "Seurat vignette"
+      href: articles/annotate-seurat.html
 
 reference:
   - title: Configuration

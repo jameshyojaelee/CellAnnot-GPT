@@ -58,6 +58,26 @@ gca api --offline --host 0.0.0.0 --port 8000
 
 Passing `--offline` or `--mock` forces the heuristic annotator and prevents external HTTP requests. Without the switch, the CLI will use your configured `OPENAI_API_KEY` for live annotations.
 
+## Install for Seurat (R)
+
+- Ensure R ≥ 4.3, Pandoc ≥ 2.11, and development headers for libcurl/openssl/xml2 are installed. On macOS use the Xcode command line tools; on Windows install [Rtools42](https://cran.r-project.org/bin/windows/Rtools/).
+- Install directly from GitHub with pak (preferred) or remotes:
+
+```r
+if (!require("pak")) install.packages("pak")
+pak::pkg_install("github::jameshyojaelee/CellAnnot-GPT@main?subdir=clients/r/gptcellannotator")
+# remotes alternative
+remotes::install_github("jameshyojaelee/CellAnnot-GPT", subdir = "clients/r/gptcellannotator", build = TRUE)
+```
+
+- Use the helper scripts for reproducible builds:
+  - `Rscript clients/r/scripts/install_github.R` installs from the default branch (override with `Rscript clients/r/scripts/install_github.R v0.1.0`).
+  - `Rscript clients/r/scripts/install_local_tarball.R` builds and installs a source tarball while caching dependencies.
+
+- After installation, surface the pkgdown reference at <https://jameshyojaelee.github.io/CellAnnot-GPT/r> and run `vignette("annotate-seurat", package = "gptcellannotator")` to confirm the Seurat workflow renders.
+
+- Offline CLI fallback relies on the Python package; install it alongside R with `pip install gpt-cell-annotator` and ensure `gca` is discoverable via `Sys.which("gca")`.
+
 ## Docker & Compose
 
 The repository ships with a multi-stage Dockerfile that produces slim runtime images and a Docker Compose configuration tuned for offline demos.

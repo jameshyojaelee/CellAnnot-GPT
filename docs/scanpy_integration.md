@@ -2,6 +2,8 @@
 
 Leverage GPT Cell Annotator inside Scanpy notebooks, pipelines, and headless batch jobs. The integration ships with both a rich Python API (`annotate_anndata`) and a CLI (`gca scanpy`) so you can stay in your preferred workflow.
 
+> Prefer Seurat? Head to [`docs/seurat_integration.md`](docs/seurat_integration.md) for the R workflow and pkgdown links.
+
 ## Quickstart Checklist
 
 | Step | Command | Notes |

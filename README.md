@@ -109,6 +109,8 @@ Add `--out-json demo_annotations.json` to store the structured report (same sche
 
 ## Key Features
 
+[![Seurat Workflow](https://img.shields.io/badge/docs-seurat_integration-orange)](docs/seurat_integration.md)
+[![pkgdown](https://img.shields.io/badge/docs-r_reference-important)](https://jameshyojaelee.github.io/CellAnnot-GPT/r)
 [![Getting Started](https://img.shields.io/badge/docs-getting_started-blue)](docs/getting_started.md)
 [![Install Guide](https://img.shields.io/badge/docs-install-blueviolet)](docs/install.md)
 [![API Reference](https://img.shields.io/badge/docs-api_reference-green)](docs/api_reference.md)
@@ -127,6 +129,13 @@ Add `--out-json demo_annotations.json` to store the structured report (same sche
 - Cross-species? Supply `species` (e.g., `Mus musculus`)—ortholog tables in `data/orthologs/` map markers back to the human-centric knowledge base and surface mapping notes in the UI/API.
 - Set `GCA_MARKER_DB_PATH` to point at external marker databases and `GCA_CACHE_DIR` to persist annotation responses when working offline.
 - Install the `[api]` extra to expose Prometheus counters for batch throughput and latency when running long-lived services.
+
+## Seurat Workflow (R)
+
+- Install the R interface with `pak::pkg_install("github::jameshyojaelee/CellAnnot-GPT?subdir=clients/r/gptcellannotator")` or run `Rscript clients/r/scripts/install_github.R`.
+- Explore the pkgdown site for function reference, configuration helpers, and the vignette walkthrough: <https://jameshyojaelee.github.io/CellAnnot-GPT/r>.
+- Run `vignette("annotate-seurat", package = "gptcellannotator")` for an end-to-end example that covers REST usage, offline CLI fallback, and metadata merging utilities.
+- Cross-check Scanpy and Seurat workflows via [`docs/seurat_integration.md`](docs/seurat_integration.md) and [`docs/scanpy_integration.md`](docs/scanpy_integration.md) to keep pipelines in sync.
 
 - Marker knowledge ingestion from PanglaoDB, CellMarker, and curated literature.
 - Prompt-engineered LLM annotation engine with batch support and uncertainty handling.

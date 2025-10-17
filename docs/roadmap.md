@@ -20,6 +20,7 @@ This roadmap highlights upcoming capabilities and areas of active exploration. T
 - **Team collaboration features**: shared review queues, annotation comments, and audit logs for regulated environments.
 
 ## Recently Shipped
+- Seurat workflow support with the `gptcellannotator` R package, pkgdown site, and cross-linked documentation (`docs/seurat_integration.md`).
 - Offline-aware packaging with bundled assets and the `gca` CLI (see [`docs/install.md`](docs/install.md)).
 - Scanpy workflow helpers and CLI parity (`gca scanpy`, [`docs/scanpy_integration.md`](docs/scanpy_integration.md)).
 - Enhanced validation guardrails documented in [`docs/operations.md`](docs/operations.md#validation-guardrails).
