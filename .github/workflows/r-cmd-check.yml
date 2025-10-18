@@ -59,7 +59,7 @@ jobs:
         uses: r-lib/actions/check-r-package@v2
         with:
           working-directory: clients/r/gptcellannotator
-          args: '--as-cran'
+          args: 'c("--no-manual", "--as-cran")'
 
       - name: Run lintr
         if: always()
