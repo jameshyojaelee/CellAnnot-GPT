@@ -32,11 +32,15 @@ navbar:
     github:
       icon: fab fa-github
       href: https://github.com/jameshyojaelee/CellAnnot-GPT
+      aria-label: GitHub repository
     vignette:
       text: "Seurat vignette"
       href: articles/annotate-seurat.html
 
 reference:
+  - title: Overview
+    contents:
+      - gptcellannotator-package
   - title: Configuration
     contents:
       - gptca_config
