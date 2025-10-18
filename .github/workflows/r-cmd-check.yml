@@ -34,8 +34,22 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --yes libcurl4-openssl-dev libssl-dev libxml2-dev libharfbuzz-dev \
-            libfribidi-dev libfontconfig1-dev libfreetype6-dev libtiff5-dev libjpeg-dev
+          sudo apt-get install --yes --no-install-recommends \
+            libcurl4-openssl-dev \
+            libssl-dev \
+            libgit2-dev \
+            libxml2-dev \
+            libfontconfig1-dev \
+            libfreetype6-dev \
+            libpng-dev \
+            libtiff5-dev \
+            libjpeg-dev \
+            libharfbuzz-dev \
+            libfribidi-dev \
+            libwebp-dev \
+            libx11-dev \
+            libicu-dev \
+            libglpk-dev
 
       - name: Install R dependencies
         uses: r-lib/actions/setup-r-dependencies@v2
