@@ -34,6 +34,7 @@ COPY --from=builder /build/dist /tmp/dist
 RUN pip install --upgrade pip \
     && python - <<'PY'
 import glob
+import shutil
 import subprocess
 import sys
 
@@ -42,8 +43,8 @@ if not wheels:
     raise SystemExit("No GPT Cell Annotator wheel found in /tmp/dist")
 wheel = wheels[-1]
 subprocess.check_call([sys.executable, "-m", "pip", "install", f"{wheel}[api,scanpy]"])
+shutil.rmtree("/tmp/dist", ignore_errors=True)
 PY
-    && rm -rf /tmp/dist
 
 VOLUME ["/data"]
 EXPOSE 8000
