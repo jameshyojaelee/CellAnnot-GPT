@@ -61,10 +61,48 @@ test_that("gptca_annotate_markers parses validated response", {
   expect_equal(result$summary$total_clusters, 1L)
 })
 
-test_that("gptca_annotate_markers falls back to CLI", {
-  cli_script <- withr::local_tempfile()
-  writeLines(
-    c(
+make_mock_cli <- function() {
+  if (.Platform$OS.type == "windows") {
+    script <- withr::local_tempfile(fileext = ".bat")
+    lines <- c(
+      "@echo off",
+      "setlocal enabledelayedexpansion",
+      "set OUT=",
+      ":parse",
+      "if \"%~1\"==\"\" goto done",
+      "if \"%~1\"==\"--out-json\" (",
+      "  set OUT=%~2",
+      "  shift",
+      "  shift",
+      "  goto parse",
+      ")",
+      "shift",
+      "goto parse",
+      ":done",
+      "if \"%OUT%\"==\"\" (",
+      "  echo Missing --out-json >&2",
+      "  exit /b 1",
+      ")",
+      "(",
+      "  echo {",
+      "  echo   \"summary\": {\"total_clusters\": 1, \"supported_clusters\": 0, \"flagged_clusters\": 1, \"unknown_clusters\": []},",
+      "  echo   \"clusters\": [",
+      "  echo     {",
+      "  echo       \"cluster_id\": \"0\",",
+      "  echo       \"status\": \"flagged\",",
+      "  echo       \"confidence\": \"Low\",",
+      "  echo       \"warnings\": [\"Mocked\"],",
+      "  echo       \"annotation\": {\"primary_label\": \"Unknown\", \"ontology_id\": null, \"confidence\": \"Low\", \"rationale\": \"\", \"markers\": []}",
+      "  echo     }",
+      "  echo   ]",
+      "  echo }",
+      ")>\"%OUT%\"",
+      "exit /b 0"
+    )
+    writeLines(lines, script, useBytes = TRUE)
+  } else {
+    script <- withr::local_tempfile()
+    lines <- c(
       "#!/usr/bin/env bash",
       "while [[ $# -gt 0 ]]; do",
       "  if [[ $1 == \"--out-json\" ]]; then",
@@ -87,10 +125,15 @@ test_that("gptca_annotate_markers falls back to CLI", {
       "  ]",
       "}",
       "JSON"
-    ),
-    cli_script
-  )
-  Sys.chmod(cli_script, mode = "0755")
+    )
+    writeLines(lines, script)
+  }
+  Sys.chmod(script, mode = "0755")
+  script
+}
+
+test_that("gptca_annotate_markers falls back to CLI", {
+  cli_script <- make_mock_cli()
 
   cfg <- gptca_config(base_url = "https://mock.api", cli_path = cli_script, offline = FALSE)
 
