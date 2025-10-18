@@ -32,7 +32,17 @@ ENV PIP_NO_CACHE_DIR=1 \
 WORKDIR /app
 COPY --from=builder /build/dist /tmp/dist
 RUN pip install --upgrade pip \
-    && pip install --no-index --find-links=/tmp/dist "gpt-cell-annotator[api,scanpy]" \
+    && python - <<'PY'
+import glob
+import subprocess
+import sys
+
+wheels = sorted(glob.glob("/tmp/dist/gpt_cell_annotator-*.whl"))
+if not wheels:
+    raise SystemExit("No GPT Cell Annotator wheel found in /tmp/dist")
+wheel = wheels[-1]
+subprocess.check_call([sys.executable, "-m", "pip", "install", f"{wheel}[api,scanpy]"])
+PY
     && rm -rf /tmp/dist
 
 VOLUME ["/data"]
