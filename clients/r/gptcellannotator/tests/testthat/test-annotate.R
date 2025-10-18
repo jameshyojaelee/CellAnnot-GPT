@@ -61,93 +61,50 @@ test_that("gptca_annotate_markers parses validated response", {
   expect_equal(result$summary$total_clusters, 1L)
 })
 
-make_mock_cli <- function() {
-  if (.Platform$OS.type == "windows") {
-    script <- withr::local_tempfile(fileext = ".bat")
-    lines <- c(
-      "@echo off",
-      "setlocal enabledelayedexpansion",
-      "set OUT=",
-      ":parse",
-      "if \"%~1\"==\"\" goto done",
-      "if \"%~1\"==\"--out-json\" (",
-      "  set OUT=%~2",
-      "  shift",
-      "  shift",
-      "  goto parse",
-      ")",
-      "shift",
-      "goto parse",
-      ":done",
-      "if \"%OUT%\"==\"\" (",
-      "  echo Missing --out-json >&2",
-      "  exit /b 1",
-      ")",
-      "(",
-      "  echo {",
-      "  echo   \"summary\": {\"total_clusters\": 1, \"supported_clusters\": 0, \"flagged_clusters\": 1, \"unknown_clusters\": []},",
-      "  echo   \"clusters\": [",
-      "  echo     {",
-      "  echo       \"cluster_id\": \"0\",",
-      "  echo       \"status\": \"flagged\",",
-      "  echo       \"confidence\": \"Low\",",
-      "  echo       \"warnings\": [\"Mocked\"],",
-      "  echo       \"annotation\": {\"primary_label\": \"Unknown\", \"ontology_id\": null, \"confidence\": \"Low\", \"rationale\": \"\", \"markers\": []}",
-      "  echo     }",
-      "  echo   ]",
-      "  echo }",
-      ")>\"%OUT%\"",
-      "exit /b 0"
-    )
-    writeLines(lines, script, useBytes = TRUE)
-  } else {
-    script <- withr::local_tempfile()
-    lines <- c(
-      "#!/usr/bin/env bash",
-      "while [[ $# -gt 0 ]]; do",
-      "  if [[ $1 == \"--out-json\" ]]; then",
-      "    shift",
-      "    out=$1",
-      "  fi",
-      "  shift",
-      "done",
-      "cat <<'JSON' > \"$out\"",
-      "{",
-      "  \"summary\": {\"total_clusters\": 1, \"supported_clusters\": 0, \"flagged_clusters\": 1, \"unknown_clusters\": []},",
-      "  \"clusters\": [",
-      "    {",
-      "      \"cluster_id\": \"0\",",
-      "      \"status\": \"flagged\",",
-      "      \"confidence\": \"Low\",",
-      "      \"warnings\": [\"Mocked\"],",
-      "      \"annotation\": {\"primary_label\": \"Unknown\", \"ontology_id\": null, \"confidence\": \"Low\", \"rationale\": \"\", \"markers\": []}",
-      "    }",
-      "  ]",
-      "}",
-      "JSON"
-    )
-    writeLines(lines, script)
-  }
-  Sys.chmod(script, mode = "0755")
-  script
-}
-
 test_that("gptca_annotate_markers falls back to CLI", {
-  cli_script <- make_mock_cli()
-
-  cfg <- gptca_config(base_url = "https://mock.api", cli_path = cli_script, offline = FALSE)
+  cfg <- gptca_config(base_url = "https://mock.api", cli_path = "/mock/cli", offline = FALSE)
+  cli_calls <- list()
+  fake_cli_response <- list(
+    summary = list(
+      total_clusters = 1L,
+      supported_clusters = 0L,
+      flagged_clusters = 1L,
+      unknown_clusters = list()
+    ),
+    clusters = list(
+      list(
+        cluster_id = "0",
+        status = "flagged",
+        confidence = "Low",
+        warnings = list("Mocked"),
+        annotation = list(
+          primary_label = "Unknown",
+          ontology_id = NULL,
+          confidence = "Low",
+          rationale = "",
+          markers = list()
+        )
+      )
+    )
+  )
 
   warnings <- list()
   result <- withCallingHandlers(
     with_mocked_bindings(
       gptca_annotate_markers(list(`0` = c("X")), config = cfg, fallback = TRUE),
-      gptca_http_post = function(path, body, config) stop("boom")
+      gptca_http_post = function(path, body, config) stop("boom"),
+      gptca_cli_available = function(config) TRUE,
+      gptca_cli_annotate = function(clusters, dataset_context, config, offline = TRUE, marker_limit = NULL) {
+        cli_calls <<- c(cli_calls, list(list(clusters = clusters, dataset_context = dataset_context, config = config)))
+        fake_cli_response
+      }
     ),
     warning = function(w) {
       warnings <<- c(warnings, list(w))
     }
   )
   expect_true(any(grepl("HTTP request failed", vapply(warnings, conditionMessage, character(1)), fixed = TRUE)))
+  expect_equal(length(cli_calls), 1L)
   expect_true(result$validated)
   expect_equal(result$clusters$status, "flagged")
   expect_identical(result$clusters$warnings[[1]], list("Mocked"))
